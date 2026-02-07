@@ -1,0 +1,50 @@
+{
+    "scenarioId": "S1",
+    "scenarioName": "Routing: Drip-and-Ship vs Mothership",
+    "phenotype": {
+        "age": 72,
+        "sex": "M",
+        "nihss": 18,
+        "occlusion": "Left M1",
+        "occlusionType": "M1",
+        "collaterals": 1.5,
+        "coreInitial": 25,
+        "territory": 150
+    },
+    "baselineActions": {
+        "routingStrategy": "direct-mothership",
+        "doorToGroinTime": 60
+    },
+    "currentActions": {
+        "routingStrategy": "drip-and-ship",
+        "transferDelay": 45,
+        "doorToGroinTime": 60,
+        "treatmentStrategy": "bridging",
+        "ivtWorkflowDelay": 8
+    },
+    "baselineMediators": {
+        "timeToReperfusion": 95,
+        "finalCoreVolume": 27,
+        "penumbraAtRisk": 125,
+        "penumbraSalvaged": 123,
+        "reperfusionProbability": 85
+    },
+    "currentMediators": {
+        "timeToReperfusion": 113,
+        "finalCoreVolume": 29,
+        "penumbraAtRisk": 125,
+        "penumbraSalvaged": 121,
+        "reperfusionProbability": 90
+    },
+    "baselineOutcomes": {
+        "sichRisk": 4,
+        "mortalityRisk": 19,
+        "mrs0to2Probability": 48
+    },
+    "currentOutcomes": {
+        "sichRisk": 5,
+        "mortalityRisk": 21,
+        "mrs0to2Probability": 50
+    },
+    "explanationType": "patient_facing"
+}

@@ -1,0 +1,18 @@
+{
+  "name": "neurosim",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.0",
+    "typescript": "~5.9.3"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  }
+}

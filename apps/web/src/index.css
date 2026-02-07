@@ -1,0 +1,252 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Light Mode (Default) */
+  --background: #ffffff;
+  --foreground: #0f172a;
+  
+  /* NeuroSim Design Tokens */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.1);
+  --glass-blur: blur(10px);
+  
+  /* Animation Easings */
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Dark Mode Variables */
+.dark {
+  --background: #050505;
+  --foreground: #f8fafc;
+  --glass-bg: rgba(15, 23, 42, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+@layer base {
+  * {
+    @apply border-neuro-border-default;
+  }
+  
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "tnum";
+  }
+  
+  /* Scrollbar Styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-neuro-bg-secondary;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-neuro-text-tertiary rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-neuro-text-secondary;
+  }
+}
+
+@layer components {
+  /* Glassmorphism Panel */
+  .glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    @apply rounded-xl;
+  }
+  
+  /* Patient Badge */
+  .patient-badge {
+    @apply inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium;
+    @apply bg-neuro-bg-tertiary border border-neuro-border-subtle;
+  }
+  
+  /* Risk Gauge */
+  .risk-gauge {
+    @apply w-full h-2 rounded-full bg-neuro-bg-tertiary overflow-hidden;
+  }
+  
+  .risk-gauge-fill {
+    @apply h-full rounded-full transition-all duration-300;
+  }
+  
+  /* Slider Custom Styling */
+  .slider-track {
+    @apply relative h-1.5 rounded-full bg-neuro-bg-tertiary;
+  }
+  
+  .slider-range {
+    @apply absolute h-full rounded-full bg-neuro-salvaged;
+  }
+  
+  .slider-thumb {
+    @apply block w-5 h-5 rounded-full bg-neuro-salvaged border-2 border-white shadow-lg;
+    @apply focus:outline-none focus:ring-2 focus:ring-neuro-salvaged focus:ring-offset-2 focus:ring-offset-neuro-bg-primary;
+    @apply transition-transform hover:scale-110 active:scale-95;
+  }
+  
+  /* Causal Change Strip */
+  .causal-strip {
+    @apply flex items-center gap-3 px-4 py-2 rounded-lg;
+    @apply bg-neuro-bg-tertiary/50 border border-neuro-border-subtle;
+  }
+  
+  .causal-pill {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+  
+  .causal-pill.positive {
+    @apply bg-neuro-salvaged/20 text-neuro-salvaged;
+  }
+  
+  .causal-pill.negative {
+    @apply bg-neuro-core/20 text-neuro-core;
+  }
+  
+  .causal-pill.neutral {
+    @apply bg-neuro-baseline/20 text-neuro-text-secondary;
+  }
+  
+  /* Scenario Card */
+  .scenario-card {
+    @apply p-4 rounded-xl border border-neuro-border-subtle bg-neuro-bg-tertiary/50;
+    @apply transition-all duration-200 cursor-pointer;
+    @apply hover:bg-neuro-bg-tertiary hover:border-neuro-border-default;
+  }
+  
+  .scenario-card.active {
+    @apply border-l-4 border-l-neuro-salvaged bg-neuro-bg-tertiary;
+  }
+  
+  /* Warning Toast */
+  .warning-toast {
+    @apply fixed bottom-6 right-6 max-w-md p-4 rounded-xl shadow-2xl;
+    @apply glass-panel z-50;
+    animation: slideUp 300ms var(--ease-out);
+  }
+  
+  /* Chart Container */
+  .chart-container {
+    @apply p-4 rounded-xl bg-neuro-bg-tertiary/30 border border-neuro-border-subtle;
+  }
+  
+  /* Tab Buttons */
+  .tab-btn {
+    @apply px-4 py-2 text-sm font-medium rounded-lg transition-colors;
+    @apply text-neuro-text-secondary hover:text-neuro-text-primary hover:bg-neuro-bg-tertiary;
+  }
+  
+  .tab-btn.active {
+    @apply bg-neuro-salvaged/20 text-neuro-salvaged;
+  }
+}
+
+@layer utilities {
+  /* Tabular Numbers for Metrics */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+  
+  /* Focus Ring */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-neuro-border-focus focus:ring-offset-2 focus:ring-offset-neuro-bg-primary;
+  }
+  
+  /* Gradient Text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-neuro-salvaged to-cyan-400 bg-clip-text text-transparent;
+  }
+  
+  /* Animations */
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideDown {
+    from {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes pulse {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+  }
+  
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 300ms cubic-bezier(0, 0, 0.2, 1);
+  }
+  
+  .animate-slide-down {
+    animation: slideDown 200ms cubic-bezier(0.4, 0, 1, 1);
+  }
+  
+  .animate-pulse-scale {
+    animation: pulse 300ms cubic-bezier(0, 0, 0.2, 1);
+  }
+  
+  .animate-shimmer {
+    animation: shimmer 1.5s infinite;
+    background-size: 200% 100%;
+  }
+  
+  /* Reduced Motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

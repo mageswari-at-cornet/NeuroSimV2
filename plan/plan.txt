@@ -1,0 +1,750 @@
+NeuroSim Backend Architecture Plan
+Executive Summary
+This plan outlines the architecture for rebuilding NeuroSim as a modern web application with:
+
+Frontend: React with TypeScript
+Backend: Node.js/Express (or Python/FastAPI)
+Database: PostgreSQL
+AI: Google Gemini LLM for clinical explanations and insights
+The application is a causal stroke pathway simulator that helps clinicians understand how different treatment decisions (Actions) affect patient outcomes through various mediating factors. The core challenge is managing complex parameter interdependencies in a causal inference framework.
+
+Application Overview
+Core Concept: Causal Reasoning (A → M → Y)
+The application implements a causal decision support system where:
+
+X (Phenotype): Fixed patient characteristics (age, sex, NIHSS, occlusion type, collaterals, initial core volume)
+A (Action/Intervention): Treatment decisions clinicians can modify (routing, IVT, imaging pathway, stenting, etc.)
+M (Mediators): Intermediate outcomes affected by actions (time-to-reperfusion, core growth, reperfusion probability, hemorrhage risk)
+Y (Outcomes): Final patient outcomes (functional independence mRS 0-2, mortality, sICH risk)
+Six Clinical Scenarios
+S1 - Routing: Drip-and-Ship vs Direct Mothership
+S2 - Bridging: IVT+EVT vs EVT Alone
+S3 - Imaging: Direct-to-Angio vs Standard CTP
+S4 - Tandem Lesion: Acute Stenting+DAPT vs Balloon Only
+S5 - Large Core: Thrombectomy vs Medical Management
+S6 - Wake-Up Stroke: MRI mismatch-guided IVT decision
+Parameter Relationships & Dependencies
+1. Static Parameters (Patient Phenotype - X)
+These are fixed for each scenario and stored in the database:
+
+Parameter	Type	Description	Range/Values
+Age	Integer	Patient age	50-72 years
+Sex	String	Patient sex	M/F
+NIHSS	Integer	Stroke severity score	12-22
+Occlusion	String	Clot location	"Left M1", "Proximal M1", "ICA Terminus", "ICA + M1", "M2"
+OcclType	String	Normalized occlusion	M1, M2, ICA, ICA_T, TANDEM, OTHER
+Collaterals	Float	Collateral circulation quality	0.5-2.5 (scale 0-3)
+Core0	Float	Initial core volume	10-90 cc
+Territory	Float	Total at-risk territory	150 cc (default)
+MismatchStrength	String	MRI mismatch (S6 only)	Mild, Moderate, Strong
+Key Relationships:
+
+OcclType is derived from Occlusion via 
+normalize_occlusion()
+ function
+Collaterals affects core growth rate and BP sensitivity
+Core0 influences reperfusion success and hemorrhage risk
+2. Action Parameters (Interventions - A)
+These are user-controlled treatment decisions:
+
+Parameter	Type	Scenarios	Values	Effect On
+route	String	S1	"Drip-and-Ship", "Direct Mothership"	time, ivt
+strategy	String	S2, S4	"EVT Alone", "Bridging (IVT+EVT)", "Balloon Only", "Acute Stenting + DAPT"	ivt, time, rep_prob, sich_prob
+action
+String	S5	"Medical Mgmt", "Thrombectomy"	rep_prob, mortality, sich_prob
+technique	String	S1, S3, S6	"Standard", "Direct Angio"	time, rep_prob
+ivt	Boolean	All	true/false	rep_prob, sich_prob
+time	Float	All	30-300 min	
+core
+, salvaged
+sbp	Float	All	100-200 mmHg	core_growth, sich_prob
+mismatch_strength	String	S6	"Mild", "Moderate", "Strong"	rep_prob, salvaged, mrs_prob
+Critical Dependencies:
+
+Time Calculation Logic (varies by scenario):
+S1 (Routing):
+  - Direct Mothership: time = dtg + 35
+  - Drip-and-Ship: time = 80 + transfer + dtg + 35 + ivt_delay
+S2 (Bridging):
+  - time = 95 + (ivt_delay if ivt else 0)
+S3 (Imaging):
+  - Direct-to-Angio: time = 70
+  - Standard: time = 105
+S4 (Tandem):
+  - Acute Stenting: time = 110
+  - Balloon Only: time = 105
+S5 (Large Core):
+  - Thrombectomy: time = 140
+  - Medical Mgmt: time = 130
+S6 (Wake-Up):
+  - time = 110 + (ivt_delay if ivt else 0)
+IVT Flag Logic:
+S2: ivt = (strategy == "Bridging (IVT+EVT)")
+S1: ivt = (route == "Drip-and-Ship")
+S6: ivt = (drug_choice == "IV tPA + EVT")
+Others: explicit boolean
+3. Mediator Parameters (M)
+These are computed intermediate outcomes:
+
+Parameter	Calculation	Depends On
+ttr (time-to-reperfusion)	From action parameters	route, strategy, technique, workflow delays
+core_growth	ttr × base_rate × fast_mult × bp_mult × noise	ttr, Collaterals, sbp, latent_fast
+core_final	Core0 + core_growth	Core0, core_growth
+penumbra_at_risk	Territory - core_final	Territory, core_final
+rep_prob	Complex function	OcclType, Collaterals, Core0, technique, strategy, ivt, 
+action
+, mismatch_strength
+salvaged	penumbra_at_risk × salv_frac	penumbra_at_risk, rep_prob, Core0, mismatch_strength
+dead_penumbra	penumbra_at_risk - salvaged	penumbra_at_risk, salvaged
+Reperfusion Probability Logic (
+compute_reperfusion_probability
+):
+
+Base by occlusion type:
+  - M2: 88%
+  - M1: 84%
+  - ICA_T: 72%
+  - TANDEM: 68%
+  - ICA: 75%
+  - OTHER: 82%
+Modifiers:
+  + 2% per collateral point above 2.0
+  - 8% if Core0 > 70cc
+  - 4% if Core0 > 40cc
+  + 3% if technique == "Direct Angio"
+  + 12% if S4 + "Acute Stenting + DAPT"
+  - 3% if S4 + "Balloon Only"
+  + 6% (M2), +3% (M1), +1% (other) if ivt
+  - 6% if S5 + "Thrombectomy"
+  = 5% if S5 + "Medical Mgmt"
+  + 2% if S6 + "Strong" mismatch
+  - 1% if S6 + "Mild" mismatch
+Salvage Fraction Logic (
+expected_salvage_fraction
+):
+
+Base salvage if reperfusion succeeds: 78%
+Base salvage if reperfusion fails: 10%
+Modifiers:
+  + 3% if S3 + "Standard" technique
+  + 6% if S6 + "Strong" mismatch
+  - 4% if S6 + "Mild" mismatch
+  - 18% if Core0 > 70cc (success), 5% (fail)
+  - 8% if Core0 > 40cc
+Expected = (rep_prob × salv_if_success) + ((1-rep_prob) × salv_if_fail)
+Core Growth Logic (
+simulate_pathway_once
+):
+
+base_rate = 0.18 + 0.14 × (2.5 - Collaterals)  [clamped 0.12-0.55]
+fast_mult = 0.85 + 0.9 × latent_fast  [latent_fast ~ Beta(2,5) for uncertainty]
+bp_mult = bp_penalty_multiplier(sbp, Collaterals)
+BP Penalty:
+  - If Collaterals < 1.5 AND sbp < 135: 1.80×
+  - If Collaterals < 2.2 AND sbp < 125: 1.45×
+  - If Collaterals >= 2.2 AND sbp < 110: 1.25×
+  - If sbp > 185: 1.08×
+  - Otherwise: 1.0×
+growth = ttr × base_rate × fast_mult × bp_mult × noise
+core_final = Core0 + growth [clamped 5 to Territory-5]
+4. Outcome Parameters (Y)
+Final clinical outcomes:
+
+Parameter	Formula	Key Dependencies
+sich_prob	3.5 + 0.09×core_final + ivt_penalty + sbp_penalty + strategy_penalty	core_final, ivt, sbp, strategy, 
+action
+mortality	4.0 + 0.13×core_final + 0.30×sich + 0.22×max(0, Age-60) + action_penalty	core_final, sich_prob, Age, 
+action
+mrs_prob	84.0 - 0.55×core_final - 0.55×max(0, Age-55) - 1.05×sich + modifiers	core_final, Age, sich_prob, mismatch_strength, 
+action
+sICH Risk Modifiers:
+
+Base: 3.5 + 0.09 × core_final
++ 4.0 if ivt
++ 2.5 if ivt AND core_final > 60
++ (sbp - 170) × 0.28 if sbp > 170
++ 9.0 if S4 + "Acute Stenting + DAPT"
++ 6.0 if S5 + "Thrombectomy" AND core_final > 80
++ 3.0 if S5 + "Thrombectomy" AND core_final <= 80
+[Clamped 1-60%]
+Mortality Modifiers:
+
+Base: 4.0 + 0.13 × core_final + 0.30 × sich + 0.22 × max(0, Age-60)
++ 18.0 if S5 + "Medical Mgmt"
+[Clamped 1-95%]
+mRS 0-2 Probability Modifiers:
+
+Base: 84.0 - 0.55 × core_final - 0.55 × max(0, Age-55) - 1.05 × sich
+Cap at 32% if core_final > 80
+Cap at 50% if core_final > 60
++ 6.0 if S6 + "Strong" mismatch
+- 5.0 if S6 + "Mild" mismatch
++ 6.0 if S5 + "Thrombectomy"
+[Clamped 0-95%]
+5. Derived Metrics (Risk Gauges)
+Visual indicators computed from outcomes:
+
+Gauge	Calculation	Range
+core_growth_speed	Based on Collaterals, delta_core	1-5
+reperfusion_difficulty	Based on OcclType, rep_prob	1-5
+hemorrhage_vulnerability	Based on sich_prob, core_final, sbp	1-5
+Database Schema Design
+Tables
+1. scenarios
+Stores the 6 clinical scenarios with fixed patient phenotypes.
+
+CREATE TABLE scenarios (
+  id VARCHAR(10) PRIMARY KEY,  -- 'S1', 'S2', etc.
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  age INTEGER NOT NULL,
+  sex VARCHAR(1) NOT NULL,
+  nihss INTEGER NOT NULL,
+  occlusion VARCHAR(50) NOT NULL,
+  occlusion_type VARCHAR(20) NOT NULL,  -- normalized
+  collaterals DECIMAL(3,2) NOT NULL,
+  core_initial DECIMAL(5,2) NOT NULL,
+  territory DECIMAL(5,2) DEFAULT 150.0,
+  mismatch_strength VARCHAR(20),  -- for S6
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+2. simulations
+Stores each simulation run with user inputs and results.
+
+CREATE TABLE simulations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  scenario_id VARCHAR(10) REFERENCES scenarios(id),
+  user_id VARCHAR(100),  -- optional user tracking
+  session_id VARCHAR(100),
+  
+  -- Action parameters (A)
+  route VARCHAR(50),
+  strategy VARCHAR(50),
+  action VARCHAR(50),
+  technique VARCHAR(50),
+  ivt BOOLEAN,
+  time_to_reperfusion DECIMAL(6,2),
+  sbp DECIMAL(5,2),
+  mismatch_strength VARCHAR(20),
+  
+  -- Workflow parameters
+  transfer_delay INTEGER,
+  door_to_groin INTEGER,
+  ivt_delay INTEGER,
+  
+  -- Simulation mode
+  mode VARCHAR(20),  -- 'deterministic' or 'uncertainty'
+  seed INTEGER,
+  n_runs INTEGER DEFAULT 1,
+  
+  -- Mediator results (M)
+  core_final DECIMAL(6,2),
+  core_growth DECIMAL(6,2),
+  penumbra_at_risk DECIMAL(6,2),
+  salvaged DECIMAL(6,2),
+  dead_penumbra DECIMAL(6,2),
+  rep_prob DECIMAL(5,2),
+  
+  -- Outcome results (Y)
+  sich_prob DECIMAL(5,2),
+  mortality DECIMAL(5,2),
+  mrs_prob DECIMAL(5,2),
+  
+  -- Uncertainty results (if Monte Carlo)
+  mrs_prob_p05 DECIMAL(5,2),
+  mrs_prob_p95 DECIMAL(5,2),
+  mortality_p05 DECIMAL(5,2),
+  mortality_p95 DECIMAL(5,2),
+  sich_prob_p05 DECIMAL(5,2),
+  sich_prob_p95 DECIMAL(5,2),
+  
+  -- Metadata
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_scenario (scenario_id),
+  INDEX idx_user_session (user_id, session_id),
+  INDEX idx_created (created_at)
+);
+3. baseline_simulations
+Stores baseline (default) simulations for each scenario for comparison.
+
+CREATE TABLE baseline_simulations (
+  scenario_id VARCHAR(10) PRIMARY KEY REFERENCES scenarios(id),
+  simulation_id UUID REFERENCES simulations(id),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+4. ai_explanations
+Caches AI-generated explanations from Gemini.
+
+CREATE TABLE ai_explanations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  simulation_id UUID REFERENCES simulations(id),
+  baseline_simulation_id UUID REFERENCES simulations(id),
+  
+  explanation_type VARCHAR(50),  -- 'patient_facing', 'clinical', 'causal_mechanism'
+  prompt TEXT NOT NULL,
+  response TEXT NOT NULL,
+  model VARCHAR(50),  -- 'gemini-pro', etc.
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_simulation (simulation_id),
+  INDEX idx_type (explanation_type)
+);
+5. imaging_assets
+Stores references to imaging files (CTP, CBV, CTA, AI masks).
+
+CREATE TABLE imaging_assets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  scenario_id VARCHAR(10) REFERENCES scenarios(id),
+  modality VARCHAR(20) NOT NULL,  -- 'CTP', 'CBV', 'CTA', 'AI'
+  file_path VARCHAR(255) NOT NULL,
+  file_url VARCHAR(255),
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_scenario_modality (scenario_id, modality)
+);
+Backend API Architecture
+Technology Stack Options
+Option 1: Node.js/Express + TypeScript
+
+Pros: Shared language with React frontend, excellent async handling
+Cons: Less mature scientific computing libraries
+Option 2: Python/FastAPI (Recommended)
+
+Pros: Can reuse existing simulation logic, better for scientific computing
+Cons: Different language from frontend
+Recommendation: Python/FastAPI to leverage existing simulation code and NumPy/Pandas for Monte Carlo simulations.
+
+API Endpoints
+Scenarios
+GET /api/scenarios
+  - Returns all 6 scenarios with phenotype data
+  - Response: Array<Scenario>
+GET /api/scenarios/:id
+  - Returns specific scenario details
+  - Response: Scenario
+GET /api/scenarios/:id/images
+  - Returns imaging URLs for scenario
+  - Response: { ctp: string, cbv: string, cta: string, ai: string }
+Simulations
+POST /api/simulations/run
+  - Runs a new simulation
+  - Body: {
+      scenario_id: string,
+      actions: ActionParameters,
+      mode: 'deterministic' | 'uncertainty',
+      seed?: number,
+      n_runs?: number
+    }
+  - Response: SimulationResult
+GET /api/simulations/:id
+  - Retrieves a saved simulation
+  - Response: SimulationResult
+POST /api/simulations/compare
+  - Compares two simulations (baseline vs intervention)
+  - Body: {
+      baseline_id: string,
+      intervention_id: string
+    }
+  - Response: ComparisonResult
+Baselines
+GET /api/scenarios/:id/baseline
+  - Returns default baseline simulation for scenario
+  - Response: SimulationResult
+AI Explanations
+POST /api/ai/explain
+  - Generates AI explanation using Gemini
+  - Body: {
+      simulation_id: string,
+      baseline_id: string,
+      explanation_type: 'patient_facing' | 'clinical' | 'causal_mechanism'
+    }
+  - Response: { explanation: string }
+GET /api/ai/explanations/:simulation_id
+  - Retrieves cached explanations
+  - Response: Array<AIExplanation>
+Analytics
+GET /api/analytics/sensitivity
+  - Computes sensitivity curve for time-to-reperfusion
+  - Query: scenario_id, actions, time_range
+  - Response: { times: number[], outcomes: number[] }
+POST /api/analytics/contribution
+  - Computes contribution breakdown
+  - Body: { baseline_id, intervention_id }
+  - Response: { total_delta: number, contributions: Array<{factor, value}> }
+Core Backend Services
+1. SimulationEngine Service
+Implements all causal logic from 
+app.py
+Functions:
+normalize_occlusion()
+bp_penalty_multiplier()
+fast_progressor_multiplier()
+compute_reperfusion_probability()
+expected_salvage_fraction()
+simulate_pathway_once()
+simulate()
+ (deterministic vs Monte Carlo)
+compute_gauges()
+contribution_breakdown()
+2. Database Service
+CRUD operations for all tables
+Transaction management
+Query optimization
+3. GeminiAI Service
+Integration with Google Gemini API
+Prompt engineering for:
+Patient-facing explanations
+Clinical reasoning
+Causal mechanism descriptions
+Response caching in ai_explanations table
+4. Validation Service
+Input validation for action parameters
+Range checking (e.g., sbp 100-200, time 30-300)
+Scenario-specific validation
+Frontend Architecture (React + Vite)
+
+Gemini LLM Integration
+Use Cases
+Patient-Facing Explanations
+
+Simplify medical jargon
+Explain trade-offs in layman's terms
+Example: "This option saves time but increases bleeding risk by X%"
+Clinical Reasoning
+
+Detailed causal mechanism explanations
+Literature-backed insights
+Risk-benefit analysis
+Interactive Q&A
+
+"Why does this parameter affect outcome?"
+"What if I change X?"
+"Show me similar cases"
+Report Generation
+
+Summarize simulation results
+Generate clinical notes
+Prompt Engineering Strategy
+// Example prompt for patient explanation
+const generatePatientPrompt = (baseline, current, scenario) => `
+You are a stroke neurologist explaining treatment options to a patient's family.
+Patient Profile:
+- Age: ${scenario.age}, Sex: ${scenario.sex}
+- Stroke Severity (NIHSS): ${scenario.nihss}
+- Clot Location: ${scenario.occlusion}
+- Collateral Circulation: ${scenario.collaterals}/3 (${scenario.collaterals < 2 ? 'poor' : 'good'})
+Treatment Options Compared:
+1. Baseline: ${formatActions(baseline.actions)}
+2. Alternative: ${formatActions(current.actions)}
+Outcomes:
+- Baseline: ${baseline.mrs_prob}% chance of independence
+- Alternative: ${current.mrs_prob}% chance of independence
+- Difference: ${current.mrs_prob - baseline.mrs_prob}% ${current.mrs_prob > baseline.mrs_prob ? 'better' : 'worse'}
+Safety:
+- Bleeding risk: ${baseline.sich_prob}% → ${current.sich_prob}%
+- Mortality: ${baseline.mortality}% → ${current.mortality}%
+Explain in 2-3 sentences:
+1. What changed and why
+2. The trade-offs involved
+3. A recommendation based on the data
+Use simple language. Avoid medical jargon. Be empathetic but honest.
+`;
+Caching Strategy
+Cache explanations in ai_explanations table
+Key: hash(simulation_id + baseline_id + explanation_type)
+TTL: 30 days
+Invalidate on model version change
+Parameter Dependency Graph
+Visual Representation
+Age
+Sex
+NIHSS
+Occlusion
+OcclType
+Collaterals
+Core0
+Territory
+Route
+Strategy
+Action
+Technique
+IVT
+Time TTR
+SBP
+Mismatch Strength
+Core Growth
+Core Final
+Penumbra at Risk
+Reperfusion Prob
+Salvaged
+Dead Penumbra
+sICH Risk
+Mortality
+mRS 0-2 Prob
+Dependency Rules Summary
+Time Calculation: Depends on scenario-specific logic combining route/strategy/action/technique + workflow delays
+Core Growth: 
+f(Time, Collaterals, SBP, latent_fast_progressor)
+Reperfusion Probability: 
+f(OcclType, Collaterals, Core0, Technique, Strategy, IVT, Action, MismatchStrength)
+Salvage: 
+f(RepProb, PenumbraAtRisk, Core0, MismatchStrength)
+sICH: 
+f(CoreFinal, IVT, SBP, Strategy, Action)
+Mortality: 
+f(CoreFinal, sICH, Age, Action)
+mRS 0-2: 
+f(CoreFinal, Age, sICH, MismatchStrength, Action)
+Implementation Phases
+Phase 1: Database & Core Backend (Week 1-2)
+ Set up PostgreSQL database
+ Create schema and seed scenarios
+ Implement SimulationEngine service (port Python logic)
+ Build REST API with FastAPI
+ Connect to backend API
+Phase 4: Gemini Integration (Week 4-5)
+ Set up Gemini API client
+ Implement prompt engineering
+ Build AI explanation components
+ Add caching layer
+ Interactive Q&A feature
+Phase 5: Polish & Optimization (Week 5-6)
+ Performance optimization (debouncing, memoization)
+ Error handling and validation
+ Responsive design
+ Accessibility (WCAG 2.1)
+ Documentation
+Verification Plan
+
+Simulation Accuracy
+
+Run all 6 scenarios with baseline parameters
+Verify within ±1% for deterministic mode
+Verify Monte Carlo distributions match
+Parameter Validation
+
+Test edge cases (min/max values)
+Verify scenario-specific logic (S1-S6)
+Check IVT flag consistency (especially S2)
+Validate time calculations for each scenario
+AI Quality
+
+Key Simplifications & Best Practices
+1. Keep Business Logic in Backend
+All simulation calculations in Python/FastAPI
+Frontend only handles presentation and user input
+
+2. Immutable Simulations
+Never modify existing simulation records
+Always create new records for new runs
+Enables audit trail and comparison
+4. Smart Caching
+Cache baseline simulations (rarely change)
+Cache AI explanations (expensive to generate)
+Use Redis for session state if needed
+5. Progressive Enhancement   
+Start with deterministic mode
+Add Monte Carlo as enhancement
+AI explanations as optional feature
+6. Type Safety
+TypeScript on frontend
+Pydantic models on backend
+Shared OpenAPI schema
+Technology Stack Summary
+| Layer | Technology | Rationale | |-------|-----------|-----------|| | Frontend Framework | React 18 + Vite | Fast dev server, HMR, optimized builds | | Language | TypeScript | Type safety, better DX | | State Management | Zustand | Lightweight, simple API, no boilerplate | | Routing | React Router v6 | Client-side routing | | Styling | Tailwind CSS + custom theme | Rapid development, consistent design | | UI Primitives | Radix UI | Accessible, unstyled components | | Charts | Recharts | React-native charts, composable API | | Icons | lucide-react | Consistent icon set | | Utilities | clsx, tailwind-merge | Conditional classes, conflict resolution | | HTTP Client | Fetch API | Native, no extra dependencies | | Backend | Python FastAPI | Reuse existing logic, async support | | Database | PostgreSQL | Relational data, JSONB for flexibility | | ORM | SQLAlchemy | Type-safe queries, migrations | | AI | Google Gemini API | Advanced language understanding | | Deployment | Docker + Docker Compose | Consistent environments | | Hosting | Netlify/Vercel (Frontend) + Railway (Backend) | Easy deployment, CDN |
+
+Next Steps
+Review this plan - Confirm architecture aligns with your vision
+Set up development environment - PostgreSQL, Python, Node.js
+Create database schema - Run migrations, seed scenarios
+Port simulation logic - Convert Python functions to FastAPI services
+Build API - Implement endpoints with OpenAPI docs
+Scaffold React app - Create component structure
+Integrate Gemini - Set up API key, test prompts
+Iterate - Build feature by feature, test continuously
+Architecture Decisions ✅
+NOTE
+
+Frontend Stack Confirmed:
+
+Framework: React 18 + Vite
+State: Zustand
+Routing: React Router v6
+UI: Radix UI + Tailwind CSS
+Charts: Recharts
+Icons: lucide-react
+Remaining Design Decisions
+Backend Framework: FastAPI (Python) ✅ RECOMMENDED
+
+Reuse existing simulation logic from 
+app.py
+NumPy/Pandas for Monte Carlo simulations
+Pydantic for type-safe API contracts
+Alternative: Express.js (would require rewriting all simulation logic)
+CORS Configuration:
+
+FastAPI backend must enable CORS for React dev server
+Production: Same-origin deployment or proper CORS headers
+Environment variables for API URL (VITE_API_URL)
+AI Integration:
+
+Start with batch generation (simpler, cacheable)
+Add streaming later for real-time explanations
+Backend handles Gemini API calls (keeps API key secure)
+Deployment:
+
+Monorepo with pnpm workspaces (simpler for solo dev)
+Alternative: Separate repos (better for team scaling)
+Netlify/Vercel for React (static hosting + CDN)
+Railway/Render for FastAPI (easy Python hosting)
+Database Hosting:
+
+Supabase (PostgreSQL + free tier + real-time subscriptions)
+Alternative: Railway PostgreSQL, Neon, or self-hosted
+Vite Configuration
+vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
+});
+Environment Variables
+# .env.development
+VITE_API_URL=http://localhost:8000
+# .env.production
+VITE_API_URL=https://your-backend.railway.app
+package.json
+{
+  "name": "neurosim-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "zustand": "^4.4.7",
+    "@radix-ui/react-slider": "^1.1.2",
+    "@radix-ui/react-select": "^2.0.0",
+    "@radix-ui/react-tabs": "^1.0.4",
+    "@radix-ui/react-dialog": "^1.0.5",
+    "@radix-ui/react-tooltip": "^1.0.7",
+    "recharts": "^2.10.3",
+    "lucide-react": "^0.294.0",
+    "clsx": "^2.0.0",
+    "tailwind-merge": "^2.1.0",
+    "use-debounce": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@types/node": "^20.10.5",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "tailwindcss": "^3.3.6",
+    "postcss": "^8.4.32",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.55.0"
+  }
+}
+Radix UI + Tailwind Integration
+// components/ui/slider.tsx (shadcn/ui pattern)
+import * as SliderPrimitive from '@radix-ui/react-slider';
+import { cn } from '@/lib/utils';
+const Slider = React.forwardRef<
+  React.ElementRef<typeof SliderPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <SliderPrimitive.Root
+    ref={ref}
+    className={cn(
+      "relative flex w-full touch-none select-none items-center",
+      className
+    )}
+    {...props}
+  >
+    <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-slate-800">
+      <SliderPrimitive.Range className="absolute h-full bg-cyan-500" />
+    </SliderPrimitive.Track>
+    <SliderPrimitive.Thumb className="block h-5 w-5 rounded-full border-2 border-cyan-500 bg-slate-900 ring-offset-slate-950 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500" />
+  </SliderPrimitive.Root>
+));
+export { Slider };
+Recharts Integration
+// components/results/TissueDonut.tsx
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
+const COLORS = {
+  core: '#b91c1c',
+  salvaged: '#06b6d4',
+  dead_penumbra: '#f59e0b',
+};
+interface Props {
+  core: number;
+  salvaged: number;
+  dead_penumbra: number;
+  territory?: number;
+}
+export function TissueDonut({ core, salvaged, dead_penumbra, territory = 150 }: Props) {
+  const data = [
+    { name: 'Core (Dead)', value: core, color: COLORS.core },
+    { name: 'Salvaged (Living)', value: salvaged, color: COLORS.salvaged },
+    { name: 'At Risk (Lost)', value: dead_penumbra, color: COLORS.dead_penumbra },
+  ];
+  
+  return (
+    <div className="relative">
+      <ResponsiveContainer width="100%" height={200}>
+        <PieChart>
+          <Pie
+            data={data}
+            cx="50%"
+            cy="50%"
+            innerRadius={60}
+            outerRadius={80}
+            dataKey="value"
+            label={({ name, value }) => `${name}: ${Math.round(value)}cc`}
+          >
+            {data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.color} />
+            ))}
+          </Pie>
+          <Legend />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white">
+            {Math.round(salvaged)}cc
+          </div>
+          <div className="text-sm text-slate-400">Saved</div>
+          <div className="text-xs text-slate-500">/ {territory}cc</div>
+        </div>
+      </div>
+    </div>
+  );
+}

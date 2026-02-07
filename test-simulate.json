@@ -1,0 +1,23 @@
+{
+    "scenarioId": "S1",
+    "phenotype": {
+        "age": 72,
+        "sex": "M",
+        "nihss": 18,
+        "occlusion": "Left M1",
+        "occlusionType": "M1",
+        "collaterals": 1.5,
+        "coreInitial": 25,
+        "territory": 150,
+        "onsetTime": "2h 14m ago",
+        "systolicBP": 150
+    },
+    "actions": {
+        "routingStrategy": "drip-and-ship",
+        "transferDelay": 45,
+        "doorToGroinTime": 60,
+        "ivtWorkflowDelay": 8,
+        "sbpTarget": 140
+    },
+    "mode": "deterministic"
+}
