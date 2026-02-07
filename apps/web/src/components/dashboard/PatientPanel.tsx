@@ -9,7 +9,7 @@ interface PatientPanelProps {
 }
 
 export function PatientPanel({ className }: PatientPanelProps) {
-  const { patientData, activeScenario, simulationParams, currentOutcomes, baselineOutcomes } = useDashboardStore();
+  const { patientData, activeScenario, currentOutcomes } = useDashboardStore();
   const [currentTime, setCurrentTime] = useState(Date.now());
 
   // Update current time every second for live timer

@@ -1,6 +1,6 @@
 import { useDashboardStore } from "../../store/dashboardStore";
 import { cn } from "../../lib/utils";
-import { Brain, Clock, User, Activity, Sun, Moon, ArrowLeft } from "lucide-react";
+import { Brain, Clock, User, Activity, ArrowLeft } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 
 interface HeaderProps {
@@ -10,7 +10,7 @@ interface HeaderProps {
 
 export function Header({ className, onBackToDashboard }: HeaderProps) {
   const { patientData } = useDashboardStore();
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode] = useState(true);
   const [currentTime, setCurrentTime] = useState(Date.now());
 
   useEffect(() => {
