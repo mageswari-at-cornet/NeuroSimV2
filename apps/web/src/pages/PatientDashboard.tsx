@@ -1,3 +1,4 @@
+
 import { PATIENTS } from "../data/patientData";
 import { Brain, User, Activity, Clock, AlertTriangle, Heart, ArrowRight, Zap } from "lucide-react";
 import { cn } from "../lib/utils";
@@ -7,6 +8,7 @@ interface PatientDashboardProps {
 }
 
 export function PatientDashboard({ onSelectPatient }: PatientDashboardProps) {
+
     const getScenarioColor = (scenario: string) => {
         switch (scenario) {
             case "routing":
@@ -66,9 +68,11 @@ export function PatientDashboard({ onSelectPatient }: PatientDashboardProps) {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-neuro-bg-tertiary/50 border border-neuro-border-subtle">
-                        <Zap className="w-4 h-4 text-neuro-salvaged" />
-                        <span className="text-sm text-neuro-text-secondary">{PATIENTS.length} Active Cases</span>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-neuro-bg-tertiary/50 border border-neuro-border-subtle">
+                            <Zap className="w-4 h-4 text-neuro-salvaged" />
+                            <span className="text-sm text-neuro-text-secondary">{PATIENTS.length} Active Cases</span>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -212,6 +216,7 @@ export function PatientDashboard({ onSelectPatient }: PatientDashboardProps) {
                     ))}
                 </div>
             </main>
+
         </div>
     );
 }

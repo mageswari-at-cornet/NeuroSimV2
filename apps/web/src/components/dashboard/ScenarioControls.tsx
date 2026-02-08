@@ -10,9 +10,10 @@ import {
 
 interface ScenarioControlsProps {
   className?: string;
+  isCompact?: boolean;
 }
 
-export function ScenarioControls({ className }: ScenarioControlsProps) {
+export function ScenarioControls({ className, isCompact }: ScenarioControlsProps) {
   const {
     activeScenario,
     simulationParams,
@@ -292,11 +293,12 @@ export function ScenarioControls({ className }: ScenarioControlsProps) {
           <Sparkles className="w-3 h-3" />
           Mode
         </h4>
-        <div className="flex gap-2">
+        <div className={cn(isCompact ? "flex flex-col gap-2" : "flex gap-2")}>
           <button
             onClick={() => setSimulationMode("deterministic")}
             className={cn(
-              "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+              "flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+              isCompact ? "w-full" : "flex-1",
               simulationMode === "deterministic"
                 ? "bg-neuro-salvaged/20 text-neuro-salvaged border border-neuro-salvaged/30"
                 : "text-neuro-text-secondary hover:text-neuro-text-primary bg-neuro-bg-tertiary/50"
@@ -308,7 +310,8 @@ export function ScenarioControls({ className }: ScenarioControlsProps) {
           <button
             onClick={() => setSimulationMode("monte-carlo")}
             className={cn(
-              "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+              "flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+              isCompact ? "w-full" : "flex-1",
               simulationMode === "monte-carlo"
                 ? "bg-neuro-salvaged/20 text-neuro-salvaged border border-neuro-salvaged/30"
                 : "text-neuro-text-secondary hover:text-neuro-text-primary bg-neuro-bg-tertiary/50"

@@ -10,9 +10,10 @@ interface TissueFateData {
 interface TissueFateDonutProps {
   data: TissueFateData;
   className?: string;
+  isCompact?: boolean;
 }
 
-export function TissueFateDonut({ data, className }: TissueFateDonutProps) {
+export function TissueFateDonut({ data, className, isCompact }: TissueFateDonutProps) {
   const total = data.core + data.salvaged + data.atRisk;
   
   const chartData = [
@@ -39,16 +40,16 @@ export function TissueFateDonut({ data, className }: TissueFateDonutProps) {
 
   return (
     <div className={cn("chart-container", className)}>
-      <h3 className="text-sm font-semibold text-neuro-text-primary mb-4">Tissue Fate</h3>
-      <div className="relative h-48">
+      <h3 className={cn("text-sm font-semibold text-neuro-text-primary", isCompact ? "mb-2" : "mb-4")}>Tissue Fate</h3>
+      <div className={cn("relative", isCompact ? "h-36" : "h-48")}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={chartData}
               cx="50%"
               cy="50%"
-              innerRadius={50}
-              outerRadius={80}
+              innerRadius={isCompact ? 35 : 50}
+              outerRadius={isCompact ? 55 : 80}
               paddingAngle={2}
               dataKey="value"
               animationDuration={500}
@@ -64,7 +65,7 @@ export function TissueFateDonut({ data, className }: TissueFateDonutProps) {
         
         {/* Center content */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-2xl font-bold tabular-nums text-neuro-text-primary">
+          <span className={cn("font-bold tabular-nums text-neuro-text-primary", isCompact ? "text-lg" : "text-2xl")}>
             {total}
           </span>
           <span className="text-xs text-neuro-text-secondary">cc total</span>
@@ -72,9 +73,9 @@ export function TissueFateDonut({ data, className }: TissueFateDonutProps) {
       </div>
       
       {/* Legend */}
-      <div className="flex justify-center gap-6 mt-4">
+      <div className={cn(isCompact ? "mt-2 flex flex-col items-center gap-1" : "mt-4 flex justify-center gap-6")}>
         {chartData.map((item) => (
-          <div key={item.name} className="flex items-center gap-2">
+          <div key={item.name} className={cn("flex items-center gap-2", isCompact && "w-full justify-center")}>
             <div
               className="w-3 h-3 rounded-full flex-shrink-0"
               style={{ backgroundColor: item.color }}

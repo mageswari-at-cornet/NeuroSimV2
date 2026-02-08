@@ -23,9 +23,10 @@ interface OutcomeComparisonProps {
   uncertaintyData?: UncertaintyData[];
   simulationMode?: "deterministic" | "monte-carlo";
   className?: string;
+  isCompact?: boolean;
 }
 
-export function OutcomeComparison({ data, uncertaintyData, simulationMode = "deterministic", className }: OutcomeComparisonProps) {
+export function OutcomeComparison({ data, uncertaintyData, simulationMode = "deterministic", className, isCompact }: OutcomeComparisonProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const isMonteCarlo = simulationMode === "monte-carlo";
 
@@ -138,15 +139,16 @@ export function OutcomeComparison({ data, uncertaintyData, simulationMode = "det
             <ResponsiveContainer width="100%" height="100%">
               {isMonteCarlo ? (
                 // Fan chart for Monte Carlo mode
-                <AreaChart data={fanChartData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                <AreaChart data={fanChartData} margin={{ top: 10, right: 10, left: 0, bottom: isCompact ? 30 : 20 }}>
                   <XAxis
                     dataKey="name"
-                    tick={{ fill: "#94a3b8", fontSize: 11 }}
+                    tick={{ fill: "#94a3b8", fontSize: isCompact ? 9 : 11 }}
                     axisLine={{ stroke: "rgba(148, 163, 184, 0.2)" }}
                     tickLine={false}
                     interval={0}
-                    angle={-15}
+                    angle={isCompact ? -25 : -15}
                     textAnchor="end"
+                    height={isCompact ? 40 : 30}
                   />
                   <YAxis
                     tick={{ fill: "#94a3b8", fontSize: 11 }}
@@ -212,15 +214,16 @@ export function OutcomeComparison({ data, uncertaintyData, simulationMode = "det
                 </AreaChart>
               ) : (
                 // Bar chart for deterministic mode
-                <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: isCompact ? 30 : 20 }}>
                   <XAxis
                     dataKey="name"
-                    tick={{ fill: "#94a3b8", fontSize: 11 }}
+                    tick={{ fill: "#94a3b8", fontSize: isCompact ? 9 : 11 }}
                     axisLine={{ stroke: "rgba(148, 163, 184, 0.2)" }}
                     tickLine={false}
                     interval={0}
-                    angle={-15}
+                    angle={isCompact ? -25 : -15}
                     textAnchor="end"
+                    height={isCompact ? 40 : 30}
                   />
                   <YAxis
                     tick={{ fill: "#94a3b8", fontSize: 11 }}
@@ -288,16 +291,17 @@ export function OutcomeComparison({ data, uncertaintyData, simulationMode = "det
           {!isMonteCarlo && (
             <div className="pt-4 border-t border-neuro-border-subtle space-y-2">
               {chartData.map((item) => (
-                <div key={item.name} className="flex justify-between items-center text-sm">
+                <div key={item.name} className={cn("flex justify-between items-center", isCompact ? "text-xs" : "text-sm")}>
                   <span className="text-neuro-text-secondary">{item.name}</span>
                   <div className="flex items-center gap-3">
-                    <span className="text-neuro-text-tertiary text-xs tabular-nums">
+                    <span className={cn("text-neuro-text-tertiary tabular-nums", isCompact ? "text-[10px]" : "text-xs")}>
                       {item.baseline}%
                     </span>
                     <span className="text-neuro-text-secondary">→</span>
                     <span
                       className={cn(
                         "font-medium tabular-nums",
+                        isCompact ? "text-xs" : "text-sm",
                         item.delta > 0 ? "text-neuro-positive" : item.delta < 0 ? "text-neuro-negative" : "text-neuro-text-secondary"
                       )}
                     >
@@ -305,7 +309,8 @@ export function OutcomeComparison({ data, uncertaintyData, simulationMode = "det
                     </span>
                     <span
                       className={cn(
-                        "text-xs font-medium tabular-nums w-12 text-right",
+                        "font-medium tabular-nums w-12 text-right",
+                        isCompact ? "text-[10px]" : "text-xs",
                         item.delta > 0 ? "text-neuro-positive" : item.delta < 0 ? "text-neuro-negative" : "text-neuro-text-secondary"
                       )}
                     >

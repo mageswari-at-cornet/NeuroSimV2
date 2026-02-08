@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { cn } from "../lib/utils";
 import { Header } from "../components/dashboard/Header";
 import { ScenarioControls } from "../components/dashboard/ScenarioControls";
 import { CausalChangeStrip } from "../components/dashboard/CausalChangeStrip";
@@ -9,6 +10,7 @@ import { PatientPanel } from "../components/dashboard/PatientPanel";
 import { CausalDAG } from "../components/dashboard/CausalDAG";
 import { FamilyExplanation } from "../components/dashboard/FamilyExplanation";
 import { TimeSensitivityCurve } from "../components/dashboard/TimeSensitivityCurve";
+import { ChatSidebar } from "../components/chat/ChatSidebar";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Activity, Clock, Heart, AlertTriangle, Brain, TrendingUp, Skull } from "lucide-react";
 
@@ -19,8 +21,16 @@ interface PatientViewProps {
 
 export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) {
   const { currentOutcomes, baselineOutcomes, activeScenario, simulationMode, uncertaintyOutcomes, baselineUncertainty, simulationParams, setSelectedPatient, getTimeSensitivity } = useDashboardStore();
+  
+  // Chat state
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
-  // Reactive sensitivity data - recalculates when outcomes change
+  // Toggle chat
+  const toggleChat = () => {
+    setIsChatOpen(!isChatOpen);
+  };
+
+  // Reactive sensitivity data
   const sensitivityData = useMemo(() => {
     return getTimeSensitivity();
   }, [currentOutcomes.timeToReperfusion, simulationParams, getTimeSensitivity]);
@@ -30,23 +40,15 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
     setSelectedPatient(patientId);
   }, [patientId, setSelectedPatient]);
 
-  // Calculate deltas for causal change strip
   const getActionText = () => {
     switch (activeScenario) {
-      case "routing":
-        return "Routing Strategy";
-      case "bridging":
-        return "Treatment Strategy";
-      case "imaging":
-        return "Imaging Pathway";
-      case "tandem":
-        return "Tandem Approach";
-      case "large-core":
-        return "Large Core Management";
-      case "wake-up":
-        return "Wake-Up Strategy";
-      default:
-        return "Intervention";
+      case "routing": return "Routing Strategy";
+      case "bridging": return "Treatment Strategy";
+      case "imaging": return "Imaging Pathway";
+      case "tandem": return "Tandem Approach";
+      case "large-core": return "Large Core Management";
+      case "wake-up": return "Wake-Up Strategy";
+      default: return "Intervention";
     }
   };
 
@@ -56,29 +58,12 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
     atRisk: currentOutcomes.penumbraAtRisk - currentOutcomes.penumbraSalvaged,
   };
 
-  // Dynamic outcome data from store
   const outcomeData = [
-    {
-      metric: "mRS 0-2",
-      baseline: baselineOutcomes.mrs0to2Probability,
-      current: currentOutcomes.mrs0to2Probability,
-      unit: "%",
-    },
-    {
-      metric: "sICH Risk",
-      baseline: baselineOutcomes.sichRisk,
-      current: currentOutcomes.sichRisk,
-      unit: "%",
-    },
-    {
-      metric: "Mortality",
-      baseline: baselineOutcomes.mortalityRisk,
-      current: currentOutcomes.mortalityRisk,
-      unit: "%",
-    },
+    { metric: "mRS 0-2", baseline: baselineOutcomes.mrs0to2Probability, current: currentOutcomes.mrs0to2Probability, unit: "%" },
+    { metric: "sICH Risk", baseline: baselineOutcomes.sichRisk, current: currentOutcomes.sichRisk, unit: "%" },
+    { metric: "Mortality", baseline: baselineOutcomes.mortalityRisk, current: currentOutcomes.mortalityRisk, unit: "%" },
   ];
 
-  // Dynamic key metrics from store (using baselineOutcomes and currentOutcomes)
   const keyMetricsBaseline = {
     timeToReperfusion: baselineOutcomes.timeToReperfusion,
     finalCoreVolume: baselineOutcomes.finalCoreVolume,
@@ -100,43 +85,35 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
   };
 
   const uncertaintyOutcomeData = [
-    {
-      metric: "mRS 0-2",
-      baseline: baselineUncertainty.mrs0to2Probability,
-      current: uncertaintyOutcomes.mrs0to2Probability,
-      unit: "%",
-    },
-    {
-      metric: "sICH Risk",
-      baseline: baselineUncertainty.sichRisk,
-      current: uncertaintyOutcomes.sichRisk,
-      unit: "%",
-    },
-    {
-      metric: "Mortality",
-      baseline: baselineUncertainty.mortalityRisk,
-      current: uncertaintyOutcomes.mortalityRisk,
-      unit: "%",
-    },
+    { metric: "mRS 0-2", baseline: baselineUncertainty.mrs0to2Probability, current: uncertaintyOutcomes.mrs0to2Probability, unit: "%" },
+    { metric: "sICH Risk", baseline: baselineUncertainty.sichRisk, current: uncertaintyOutcomes.sichRisk, unit: "%" },
+    { metric: "Mortality", baseline: baselineUncertainty.mortalityRisk, current: uncertaintyOutcomes.mortalityRisk, unit: "%" },
   ];
 
   return (
-    <div className="min-h-screen bg-neuro-bg-primary flex flex-col">
-      {/* Header - Now with patient phenotype */}
-      <Header onBackToDashboard={onBackToDashboard} />
+    <div className="min-h-screen bg-neuro-bg-primary flex flex-col pt-[80px]">
+      {/* Header */}
+      <Header 
+        onBackToDashboard={onBackToDashboard}
+        isChatOpen={isChatOpen}
+        onChatToggle={toggleChat}
+      />
 
       {/* Main Layout */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Scenario Controls - Further reduced width */}
-        <aside className="w-64 flex-shrink-0 bg-neuro-bg-secondary/50 border-r border-neuro-border-subtle overflow-y-auto">
+      <div className={cn(
+        "flex-1 flex overflow-hidden",
+        isChatOpen && "mr-80"
+      )}>
+        {/* Left Sidebar - Scenario Controls - Always visible */}
+        <aside className={cn("flex-shrink-0 bg-neuro-bg-secondary/50 border-r border-neuro-border-subtle overflow-y-auto", isChatOpen ? "w-56" : "w-64")}>
           <div className="p-4">
-            <ScenarioControls />
+            <ScenarioControls isCompact={isChatOpen} />
           </div>
         </aside>
 
-        {/* Main Content Area - Increased width */}
+        {/* Main Content Area */}
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Causal Change Summary Strip - Non-scrollable */}
+          {/* Causal Change Summary Strip */}
           <div className="px-4 py-3 border-b border-neuro-border-subtle">
             <CausalChangeStrip
               change={{
@@ -148,7 +125,7 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
             />
           </div>
 
-          {/* Main Canvas - Reorganized Layout */}
+          {/* Main Canvas */}
           <div className="flex-1 overflow-y-auto p-4">
             <div className="space-y-4">
               {/* Row 1: Imaging - Full Width */}
@@ -156,18 +133,18 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
                 <ImagingViewer className="min-h-[180px]" />
               </div>
 
-              {/* Row 2: Tissue Fate + Causal Pathway */}
-              <div className="grid grid-cols-2 gap-4">
-                <TissueFateDonut data={tissueFateData} />
+              {/* Row 2: Tissue Fate + Outcomes */}
+              <div className={cn("grid gap-4", isChatOpen ? "grid-cols-[1.2fr_2fr]" : "grid-cols-2")}>
+                <TissueFateDonut data={tissueFateData} isCompact={isChatOpen} />
                 <OutcomeComparison
                   data={outcomeData}
                   uncertaintyData={uncertaintyOutcomeData}
                   simulationMode={simulationMode}
+                  isCompact={isChatOpen}
                 />
               </div>
 
-              {/* Row 3: Key Outcome Metrics - Table Style */}
-              {/* Row 3: Time Sensitivity Curve (Always Expanded) */}
+              {/* Row 3: Time Sensitivity Curve */}
               <TimeSensitivityCurve
                 currentTime={currentOutcomes.timeToReperfusion}
                 sensitivityData={sensitivityData}
@@ -179,14 +156,14 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
           </div>
         </main>
 
-        {/* Right Panel - Patient Info & Explanation */}
+        {/* Right Panel - Patient Info & Explanation - Always visible */}
         <aside className="w-72 flex-shrink-0 bg-neuro-bg-secondary/50 border-l border-neuro-border-subtle overflow-y-auto">
           <div className="p-4 space-y-6">
             <PatientPanel />
 
             <div className="h-px bg-neuro-border-subtle" />
 
-            {/* Key Outcome Metrics - Compact Sidebar Version */}
+            {/* Key Outcome Metrics */}
             <div className="glass-panel p-3 overflow-x-auto">
               <h3 className="text-sm font-semibold text-neuro-text-primary mb-3 flex items-center gap-2">
                 <Activity className="w-4 h-4 text-neuro-salvaged" />
@@ -262,6 +239,14 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
 
             <FamilyExplanation />
           </div>
+        </aside>
+
+        {/* Chat Sidebar - Fixed on right */}
+        <aside className={cn(
+          "fixed right-0 top-[80px] bottom-0 w-80 bg-neuro-bg-secondary border-l border-neuro-border-subtle z-40 shadow-2xl transition-transform duration-300 ease-in-out",
+          isChatOpen ? "translate-x-0" : "translate-x-full"
+        )}>
+          <ChatSidebar onClose={() => setIsChatOpen(false)} />
         </aside>
       </div>
     </div>
