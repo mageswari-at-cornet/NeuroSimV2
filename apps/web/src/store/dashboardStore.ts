@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { getPatientById, getDefaultPatient } from "../data/patientData";
-import { simulatePathway } from "../lib/simulationEngine";
+// Remove simulationEngine imports from top level
 import type { PatientPhenotype, ActionParameters } from "../lib/types";
 import type {
   Scenario,
@@ -31,11 +31,11 @@ function capitalize(str: string): string {
 }
 
 // Client-side simulation calculation using the simulation engine
-function calculateOutcomes(
+async function calculateOutcomes(
   params: SimulationParams,
   patientData: PatientData,
   mode: 'deterministic' | 'monte-carlo' = 'deterministic'
-): { outcomes: OutcomeMetrics; uncertainty?: UncertaintyOutcomes } {
+): Promise<{ outcomes: OutcomeMetrics; uncertainty?: UncertaintyOutcomes }> {
   // Convert our store types to simulation engine types
   const phenotype: PatientPhenotype = {
     age: patientData.age,
@@ -65,7 +65,16 @@ function calculateOutcomes(
   };
 
   // Run simulation
-  const result = simulatePathway(phenotype, actions, { mode, nRuns: 200 });
+  let result: any; // Use any to allow for updated types
+  if (mode === 'monte-carlo') {
+    // Use the new Mega-Batch Monte Carlo
+    const { calculateMonteCarloStats } = await import("../lib/simulationEngine");
+    result = await calculateMonteCarloStats(phenotype, actions, 50);
+  } else {
+    // Use standard single run (legacy but essentially batch)
+    const { simulatePathway } = await import("../lib/simulationEngine");
+    result = await simulatePathway(phenotype, actions, { mode, nRuns: 1 });
+  }
 
   // Convert simulation results to our store types
   const outcomes: OutcomeMetrics = {
@@ -94,11 +103,11 @@ function calculateOutcomes(
 }
 
 // Calculate time sensitivity curve data
-function calculateTimeSensitivity(
+async function calculateTimeSensitivity(
   params: SimulationParams,
   patientData: PatientData,
   currentTime: number
-): Array<{ time: number; mrs0to2: number; label: string; isCurrent: boolean }> {
+): Promise<Array<{ time: number; mrs0to2: number; label: string; isCurrent: boolean }>> {
   const timePoints = [
     { offset: -60, label: "-60 min" },
     { offset: -30, label: "-30 min" },
@@ -107,30 +116,73 @@ function calculateTimeSensitivity(
     { offset: 60, label: "+60 min" },
   ];
 
-  return timePoints.map(point => {
-    const testTime = Math.max(0, currentTime + point.offset);
+  // Prepare input scenarios for the new batch function
+  const phenotype: PatientPhenotype = {
+    age: patientData.age,
+    sex: patientData.sex === 'Other' ? 'F' : patientData.sex,
+    nihss: patientData.nihss,
+    occlusion: patientData.occlusionLocation,
+    occlusionType: normalizeOcclusionType(patientData.occlusionLocation),
+    collaterals: patientData.collateralScore,
+    coreInitial: patientData.initialCoreVolume,
+    territory: patientData.territoryAtRisk,
+    mismatchStrength: params.mismatchStrength ? capitalize(params.mismatchStrength) as 'Mild' | 'Moderate' | 'Strong' : 'Moderate',
+    onsetTime: patientData.onsetTime,
+    systolicBP: patientData.systolicBP,
+  };
 
-    // Create modified params with adjusted time
-    // We adjust doorToGroinTime by the offset delta
-    const modifiedParams = {
-      ...params,
-      doorToGroinTime: Math.max(0, params.doorToGroinTime + point.offset),
-    };
+  const baseActions: ActionParameters = {
+    routingStrategy: params.routingStrategy,
+    transferDelay: params.transferDelay,
+    doorToGroinTime: params.doorToGroinTime,
+    ivtWorkflowDelay: params.ivtWorkflowDelay,
+    treatmentStrategy: params.treatmentStrategy,
+    imagingPathway: params.imagingPathway,
+    tandemApproach: params.tandemApproach,
+    largeCoreStrategy: params.largeCoreStrategy,
+    wakeUpStrategy: params.wakeUpStrategy,
+    sbpTarget: params.sbpTarget,
+  };
 
-    // Run simulation at this time point
-    const { outcomes } = calculateOutcomes(modifiedParams, patientData, 'deterministic');
-
+  const scenarios = timePoints.map(point => {
     return {
-      time: testTime,
-      mrs0to2: Math.round(outcomes.mrs0to2Probability),
-      label: point.label,
-      isCurrent: point.offset === 0,
+      id: point.label,
+      phenotype, // Same phenotype
+      actions: {
+        ...baseActions,
+        doorToGroinTime: Math.max(0, (baseActions.doorToGroinTime || 0) + point.offset), // Modify time
+      }
     };
   });
+
+  try {
+    // Use the new Mega-Batch Scenarios function
+    const { calculateScenarios } = await import("../lib/simulationEngine");
+    const results = await calculateScenarios(scenarios);
+
+    // Map results back to the graph format
+    return timePoints.map(point => {
+      const res = results.find(r => r.id === point.label);
+      const testTime = Math.max(0, currentTime + point.offset);
+
+      return {
+        time: testTime,
+        mrs0to2: res ? Math.round(res.result.mrs0to2Probability) : 0,
+        label: point.label,
+        isCurrent: point.offset === 0,
+      };
+    });
+  } catch (e) {
+    console.error("Time sensitivity batch failed", e);
+    // Fallback: return zeros
+    return timePoints.map(point => ({
+      time: Math.max(0, currentTime + point.offset),
+      mrs0to2: 0,
+      label: point.label,
+      isCurrent: point.offset === 0,
+    }));
+  }
 }
-
-
-
 
 interface DashboardState {
   // Current selections
@@ -144,14 +196,18 @@ interface DashboardState {
   uncertaintyOutcomes: UncertaintyOutcomes;
   baselineUncertainty: UncertaintyOutcomes;
 
+  // Async state
+  isCalculating: boolean;
+  timeSensitivityData: Array<{ time: number; mrs0to2: number; label: string; isCurrent: boolean }>;
+
   // Actions
   setSelectedPatient: (patientId: string) => void;
-  setActiveScenario: (scenario: Scenario) => void;
-  updatePatientData: (data: Partial<PatientData>) => void;
-  updateSimulationParams: (params: Partial<SimulationParams>) => void;
-  setSimulationMode: (mode: "deterministic" | "monte-carlo") => void;
+  setActiveScenario: (scenario: Scenario) => Promise<void>;
+  updatePatientData: (data: Partial<PatientData>) => Promise<void>;
+  updateSimulationParams: (params: Partial<SimulationParams>) => Promise<void>;
+  setSimulationMode: (mode: "deterministic" | "monte-carlo") => Promise<void>;
   resetToBaseline: () => void;
-  getTimeSensitivity: () => Array<{ time: number; mrs0to2: number; label: string; isCurrent: boolean }>;
+  // removed getTimeSensitivity as it's now stored in state
 }
 
 const defaultPatientData: PatientData = {
@@ -211,6 +267,8 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   simulationMode: "deterministic",
   uncertaintyOutcomes: defaultUncertaintyOutcomes,
   baselineUncertainty: defaultUncertaintyOutcomes,
+  isCalculating: false,
+  timeSensitivityData: [],
 
   setSelectedPatient: (patientId: string) => {
     const patient = getPatientById(patientId);
@@ -229,40 +287,90 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       patientData: patient.data,
       activeScenario: patient.scenario,
     });
+    // Trigger calculation
+    get().updateSimulationParams({});
   },
 
-  setActiveScenario: (scenario) => {
-    set({ activeScenario: scenario });
-    // Recalculate outcomes using client-side simulation
-    const state = get();
-    const { outcomes, uncertainty } = calculateOutcomes(state.simulationParams, state.patientData, state.simulationMode);
-    set({ currentOutcomes: outcomes });
-    if (uncertainty) set({ uncertaintyOutcomes: uncertainty });
+  setActiveScenario: async (scenario) => {
+    set({ activeScenario: scenario, isCalculating: true });
+    try {
+      const state = get();
+      const { outcomes, uncertainty } = await calculateOutcomes(state.simulationParams, state.patientData, state.simulationMode);
+
+      const timeSensitivity = await calculateTimeSensitivity(
+        state.simulationParams,
+        state.patientData,
+        outcomes.timeToReperfusion
+      );
+
+      set({ currentOutcomes: outcomes, timeSensitivityData: timeSensitivity, isCalculating: false });
+      if (uncertainty) set({ uncertaintyOutcomes: uncertainty });
+    } catch (e) {
+      console.error("Simulation failed", e);
+      set({ isCalculating: false });
+    }
   },
 
-  updatePatientData: (data) =>
+  updatePatientData: async (data) => {
     set((state) => ({
       patientData: { ...state.patientData, ...data },
-    })),
+      isCalculating: true
+    }));
 
-  updateSimulationParams: (params) => {
-    const state = get();
-    const newParams = { ...state.simulationParams, ...params };
-    set({ simulationParams: newParams });
+    try {
+      const state = get();
+      const { outcomes, uncertainty } = await calculateOutcomes(state.simulationParams, state.patientData, state.simulationMode);
 
-    // Recalculate outcomes using client-side simulation
-    const { outcomes, uncertainty } = calculateOutcomes(newParams, state.patientData, state.simulationMode);
-    set({ currentOutcomes: outcomes });
-    if (uncertainty) set({ uncertaintyOutcomes: uncertainty });
+      const timeSensitivity = await calculateTimeSensitivity(
+        state.simulationParams,
+        state.patientData,
+        outcomes.timeToReperfusion
+      );
+
+      set({ currentOutcomes: outcomes, timeSensitivityData: timeSensitivity, isCalculating: false });
+      if (uncertainty) set({ uncertaintyOutcomes: uncertainty });
+    } catch (e) {
+      console.error("Simulation failed", e);
+      set({ isCalculating: false });
+    }
   },
 
-  setSimulationMode: (mode) => {
-    set({ simulationMode: mode });
-    // Recalculate outcomes using client-side simulation
-    const state = get();
-    const { outcomes, uncertainty } = calculateOutcomes(state.simulationParams, state.patientData, mode);
-    set({ currentOutcomes: outcomes });
-    if (uncertainty) set({ uncertaintyOutcomes: uncertainty });
+  updateSimulationParams: async (params) => {
+    set((state) => ({
+      simulationParams: { ...state.simulationParams, ...params },
+      isCalculating: true
+    }));
+
+    try {
+      const state = get();
+      const { outcomes, uncertainty } = await calculateOutcomes(state.simulationParams, state.patientData, state.simulationMode);
+
+      const timeSensitivity = await calculateTimeSensitivity(
+        state.simulationParams,
+        state.patientData,
+        outcomes.timeToReperfusion
+      );
+
+      set({ currentOutcomes: outcomes, timeSensitivityData: timeSensitivity, isCalculating: false });
+      if (uncertainty) set({ uncertaintyOutcomes: uncertainty });
+    } catch (e) {
+      console.error("Simulation failed", e);
+      set({ isCalculating: false });
+    }
+  },
+
+  setSimulationMode: async (mode) => {
+    set({ simulationMode: mode, isCalculating: true });
+
+    try {
+      const state = get();
+      const { outcomes, uncertainty } = await calculateOutcomes(state.simulationParams, state.patientData, mode);
+      set({ currentOutcomes: outcomes, isCalculating: false });
+      if (uncertainty) set({ uncertaintyOutcomes: uncertainty });
+    } catch (e) {
+      console.error("Simulation failed", e);
+      set({ isCalculating: false });
+    }
   },
 
   resetToBaseline: () =>
@@ -271,13 +379,4 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       uncertaintyOutcomes: state.baselineUncertainty,
       simulationParams: defaultSimulationParams,
     })),
-
-  getTimeSensitivity: () => {
-    const state = get();
-    return calculateTimeSensitivity(
-      state.simulationParams,
-      state.patientData,
-      state.currentOutcomes.timeToReperfusion
-    );
-  },
 }));

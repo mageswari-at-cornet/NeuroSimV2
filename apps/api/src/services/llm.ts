@@ -16,52 +16,97 @@ export class LLMService {
     /**
      * Helper function to call Groq API
      */
+    private static queue: (() => Promise<void>)[] = [];
+    private static isProcessing = false;
+
+    /**
+     * Enqueues a task to be executed with rate limiting
+     */
+    private static async enqueue<T>(task: () => Promise<T>): Promise<T> {
+        return new Promise((resolve, reject) => {
+            this.queue.push(async () => {
+                try {
+                    const result = await task();
+                    resolve(result);
+                } catch (e) {
+                    reject(e);
+                }
+            });
+            this.processQueue();
+        });
+    }
+
+    /**
+     * Processes the queue sequentially with a delay to respect rate limits
+     */
+    private static async processQueue() {
+        if (this.isProcessing) return;
+        this.isProcessing = true;
+
+        while (this.queue.length > 0) {
+            const task = this.queue.shift();
+            if (task) {
+                await task();
+                // Enforce 2000ms delay between requests to stay under 30 RPM
+                // (60s / 30 requests = 2s per request)
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
+
+        this.isProcessing = false;
+    }
+
+    /**
+     * Helper function to call Groq API with queuing and retries
+     */
     private static async callGroq(messages: { role: string; content: string }[], temperature: number = 0.7, retries = 3): Promise<string> {
         if (!apiKey) {
             throw new Error("GROK_API_KEY is not configured");
         }
 
-        let lastError: any;
+        return this.enqueue(async () => {
+            let lastError: any;
 
-        for (let i = 0; i < retries; i++) {
-            try {
-                const response = await fetch(GROQ_API_URL, {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${apiKey}`,
-                        "Content-Type": "application/json",
-                        "User-Agent": "NeuroSim-API/1.0"
-                    },
-                    body: JSON.stringify({
-                        model: MODEL,
-                        messages: messages,
-                        temperature: temperature,
-                        max_tokens: 1024
-                    })
-                });
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(GROQ_API_URL, {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${apiKey}`,
+                            "Content-Type": "application/json",
+                            "User-Agent": "NeuroSim-API/1.0"
+                        },
+                        body: JSON.stringify({
+                            model: MODEL,
+                            messages: messages,
+                            temperature: temperature,
+                            max_tokens: 1024
+                        })
+                    });
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    // Don't retry client errors (4xx) unless it's 429 (Rate Limit)
-                    if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        // Don't retry client errors (4xx) unless it's 429 (Rate Limit)
+                        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+                            throw new Error(`Groq API error: ${response.status} ${response.statusText} - ${errorText}`);
+                        }
                         throw new Error(`Groq API error: ${response.status} ${response.statusText} - ${errorText}`);
                     }
-                    throw new Error(`Groq API error: ${response.status} ${response.statusText} - ${errorText}`);
-                }
 
-                const data: any = await response.json();
-                return data.choices[0]?.message?.content || "";
-            } catch (error) {
-                console.warn(`Attempt ${i + 1} failed:`, error instanceof Error ? error.message : error);
-                lastError = error;
-                // Wait before retrying (exponential backoff: 500ms, 1000ms, 2000ms)
-                if (i < retries - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, i)));
+                    const data: any = await response.json();
+                    return data.choices[0]?.message?.content || "";
+                } catch (error) {
+                    console.warn(`Attempt ${i + 1} failed:`, error instanceof Error ? error.message : error);
+                    lastError = error;
+                    // Wait before retrying (exponential backoff: 500ms, 1000ms, 2000ms)
+                    if (i < retries - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, i)));
+                    }
                 }
             }
-        }
 
-        throw lastError;
+            throw lastError;
+        });
     }
 
     /**
@@ -146,6 +191,72 @@ IMPORTANT:
         } catch (error) {
             console.error("Error in chat:", error);
             return "I'm having trouble connecting to the AI service right now.";
+        }
+    }
+
+    /**
+     * Calculates a value based on a prompt and context.
+     * Returns a number (legacy) or an object (batch).
+     */
+    static async calculate(prompt: string): Promise<any> {
+        const messages = [
+            {
+                role: "system",
+                content: `You are a precise mathematical calculation engine.
+                You will be given a mathematical problem or equation with inputs.
+                You must output ONLY a JSON object.
+                Do not output any text, explanation, reasoning, or markdown.
+                Just the JSON object.
+                If the result is a decimal, round to 4 decimal places.`
+            },
+            { role: "user", content: prompt }
+        ];
+
+        try {
+            // Use low temperature for deterministic math
+            // Force JSON mode if supported by the model, otherwise rely on prompt
+            const resultStr = await this.callGroq(messages, 0.1);
+
+            // robust parsing
+            try {
+                // LOGGING FOR DEBUGGING
+                console.log(`[LLM Raw] ${resultStr.substring(0, 100)}...`);
+
+                // Try to find JSON in the output if there's extra text/markdown
+                const firstOpen = resultStr.indexOf('{');
+                const lastClose = resultStr.lastIndexOf('}');
+                let jsonStr = resultStr;
+
+                if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+                    jsonStr = resultStr.substring(firstOpen, lastClose + 1);
+                }
+
+                const parsed = JSON.parse(jsonStr);
+                console.log(`[LLM Parsed] Keys: ${Object.keys(parsed).join(', ')}`);
+
+                // If it's the legacy format { result: number }, return the number
+                if (parsed.result !== undefined && typeof parsed.result === 'number' && Object.keys(parsed).length === 1) {
+                    return parsed.result;
+                }
+
+                // Otherwise return the whole object (Batch mode)
+                return parsed;
+            } catch (e) {
+                console.error("[LLM Parse Error] Raw string was:", resultStr);
+                // Fallback to simple number parsing if JSON parsing fails and it might be a raw number (legacy fallback)
+                // Only if the string looks like a number and not a failed JSON
+                const cleanStr = resultStr.replace(/[^0-9.-]/g, '');
+                if (cleanStr && !resultStr.includes('{')) {
+                    const num = parseFloat(cleanStr);
+                    if (!isNaN(num)) return num;
+                }
+
+                console.error(`LLM returned invalid JSON: "${resultStr}"`);
+                throw new Error(`LLM returned invalid JSON: ${resultStr}`);
+            }
+        } catch (error) {
+            console.error("Error in LLM calculation:", error);
+            throw error;
         }
     }
 }

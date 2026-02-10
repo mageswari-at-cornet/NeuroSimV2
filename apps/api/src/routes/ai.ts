@@ -68,4 +68,22 @@ export async function aiRoutes(fastify: FastifyInstance) {
             reply.status(400).send({ error: "Invalid request or AI service error" });
         }
     });
+
+    // Validations for calculation request
+    const calculateSchema = z.object({
+        prompt: z.string(),
+        equationRef: z.string().optional(),
+        inputs: z.record(z.any()).optional()
+    });
+
+    fastify.post('/calculate', async (request, reply) => {
+        try {
+            const body = calculateSchema.parse(request.body);
+            const result = await LLMService.calculate(body.prompt);
+            return { result };
+        } catch (error) {
+            request.log.error(error);
+            reply.status(400).send({ error: "Calculation failed" });
+        }
+    });
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "../lib/utils";
 import { Header } from "../components/dashboard/Header";
 import { ScenarioControls } from "../components/dashboard/ScenarioControls";
@@ -20,8 +20,18 @@ interface PatientViewProps {
 }
 
 export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) {
-  const { currentOutcomes, baselineOutcomes, activeScenario, simulationMode, uncertaintyOutcomes, baselineUncertainty, simulationParams, setSelectedPatient, getTimeSensitivity } = useDashboardStore();
-  
+  const {
+    currentOutcomes,
+    baselineOutcomes,
+    activeScenario,
+    simulationMode,
+    uncertaintyOutcomes,
+    baselineUncertainty,
+    setSelectedPatient,
+    timeSensitivityData,
+    isCalculating
+  } = useDashboardStore();
+
   // Chat state
   const [isChatOpen, setIsChatOpen] = useState(false);
 
@@ -30,10 +40,8 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
     setIsChatOpen(!isChatOpen);
   };
 
-  // Reactive sensitivity data
-  const sensitivityData = useMemo(() => {
-    return getTimeSensitivity();
-  }, [currentOutcomes.timeToReperfusion, simulationParams, getTimeSensitivity]);
+  // Use store data directly
+  const sensitivityData = timeSensitivityData;
 
   // Load patient data on mount
   useEffect(() => {
@@ -93,7 +101,7 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
   return (
     <div className="min-h-screen bg-neuro-bg-primary flex flex-col pt-[80px]">
       {/* Header */}
-      <Header 
+      <Header
         onBackToDashboard={onBackToDashboard}
         isChatOpen={isChatOpen}
         onChatToggle={toggleChat}
@@ -112,7 +120,19 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+
+          {/* Loading Overlay */}
+          {isCalculating && (
+            <div className="absolute inset-0 z-50 bg-neuro-bg-primary/50 backdrop-blur-sm flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3 p-6 rounded-xl bg-neuro-bg-secondary border border-neuro-border-subtle shadow-xl">
+                <div className="w-8 h-8 border-4 border-neuro-salvaged border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm font-medium text-neuro-text-primary">Simulating Outcomes...</p>
+                <p className="text-xs text-neuro-text-tertiary">Consulting AI Model</p>
+              </div>
+            </div>
+          )}
+
           {/* Causal Change Summary Strip */}
           <div className="px-4 py-3 border-b border-neuro-border-subtle">
             <CausalChangeStrip
