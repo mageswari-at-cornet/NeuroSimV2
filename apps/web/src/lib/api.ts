@@ -93,6 +93,17 @@ export interface ExplainResponse {
     model: string;
 }
 
+export interface ChatRequest {
+    history: { role: string; content: string }[];
+    message: string;
+    context: any;
+}
+
+export interface ChatResponse {
+    response: string;
+    generatedAt: string;
+}
+
 // API functions
 export const api = {
     async getScenarios(): Promise<Scenario[]> {
@@ -124,6 +135,16 @@ export const api = {
             body: JSON.stringify(request),
         });
         if (!response.ok) throw new Error('Explanation failed');
+        return response.json();
+    },
+
+    async chat(request: ChatRequest): Promise<ChatResponse> {
+        const response = await fetch(`${API_BASE_URL}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(request),
+        });
+        if (!response.ok) throw new Error('Chat failed');
         return response.json();
     },
 

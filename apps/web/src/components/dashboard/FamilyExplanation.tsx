@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useDashboardStore } from "../../store/dashboardStore";
+import { api } from "../../lib/api";
 import { cn } from "../../lib/utils";
 import { Users, Copy, Check, RefreshCw, MessageCircle } from "lucide-react";
 
@@ -8,28 +9,49 @@ interface FamilyExplanationProps {
 }
 
 export function FamilyExplanation({ className }: FamilyExplanationProps) {
-  const { activeScenario } = useDashboardStore();
+  const { activeScenario, patientData, currentOutcomes, simulationParams } = useDashboardStore();
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [explanation, setExplanation] = useState<string | null>(null);
 
-  const generateExplanation = () => {
+
+
+  const generateExplanation = async () => {
     setIsGenerating(true);
+    setExplanation(null);
 
-    // Simulate short delay for "thinking" effect
-    setTimeout(() => {
-      const scenarioExplanations: Record<string, string> = {
-        routing: "We have two options: start a clot-busting drug here and transfer, or go directly to the specialist center. Given the distance and traffic, going directly to the mothership minimizes the delay to the procedure (EVT), which gives the best chance of saving brain tissue.",
-        bridging: "The standard care is to give a clot-busting drug (IVT) before the procedure. However, for this large clot, the drug alone rarely works and adds a small risk of bleeding. Proceeding directly to the mechanical removal (EVT) avoids that risk and saves time properly.",
-        imaging: "We can do a complete scan here to be 100% sure, or skip straight to the angio suite. Since the basic scan confirms a stroke, skipping the detailed map saves about 30 minutes. Time is brain, so we recommend going straight to the procedure.",
-        tandem: "There is a blockage in both the neck and the brain. We need to decide whether to open the neck first or the brain first. Acute stenting of the neck gives the best long-term result but requires strong blood thinners. We will weigh the bleeding risk carefully.",
-        "large-core": "Even though a significant area of the brain has been affected, recent studies show that removing the clot can still help regain independence. We believe the benefit of the procedure removing the clot outweighs the risks, even with this larger injury.",
-        "wake-up": "Since we don't know exactly when the stroke started, we used a special MRI scan. The scan shows there is still salvageable brain tissue. This 'mismatch' means we are still in time to treat safely with clot removal or medication.",
-      };
-
-      setExplanation(scenarioExplanations[activeScenario] || "Standard protocol is recommended based on the patient's specific condition and current guidelines.");
+    try {
+      const result = await api.explain({
+        scenarioId: activeScenario,
+        explanationType: 'patient_facing',
+        phenotype: {
+          age: patientData.age,
+          sex: patientData.sex,
+          nihss: patientData.nihss,
+          occlusion: patientData.occlusionLocation,
+          collaterals: patientData.collateralScore,
+          coreInitial: patientData.initialCoreVolume,
+          territory: patientData.territoryAtRisk,
+        },
+        baselineOutcomes: {
+          sichRisk: 0,
+          mortalityRisk: 0,
+          mrs0to2Probability: 0
+        },
+        currentOutcomes: {
+          sichRisk: currentOutcomes.sichRisk,
+          mortalityRisk: currentOutcomes.mortalityRisk,
+          mrs0to2Probability: currentOutcomes.mrs0to2Probability
+        },
+        currentActions: simulationParams
+      });
+      setExplanation(result.explanation);
+    } catch (error) {
+      console.error("Failed to generate explanation:", error);
+      setExplanation("I apologize, but I am unable to generate an explanation at this moment. Please try again.");
+    } finally {
       setIsGenerating(false);
-    }, 800);
+    }
   };
 
   const copyToClipboard = () => {
