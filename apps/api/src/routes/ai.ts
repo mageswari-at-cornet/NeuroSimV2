@@ -25,7 +25,7 @@ const explainSchema = z.object({
         mortalityRisk: z.number(),
         mrs0to2Probability: z.number(),
     }),
-}).passthrough(); // Allow other fields like actions/mediators without validation for now
+}).passthrough();
 
 const chatSchema = z.object({
     history: z.array(z.object({

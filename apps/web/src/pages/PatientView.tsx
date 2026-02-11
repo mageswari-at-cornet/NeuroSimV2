@@ -139,8 +139,8 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
               change={{
                 action: getActionText(),
                 mediator: `Time-to-reperfusion (${currentOutcomes.timeToReperfusion} min)`,
-                outcome: `mRS 0-2 ${currentOutcomes.mrs0to2Probability >= baselineOutcomes.mrs0to2Probability ? "↑" : "↓"} ${Math.abs(currentOutcomes.mrs0to2Probability - baselineOutcomes.mrs0to2Probability)}%`,
-                outcomeDelta: currentOutcomes.mrs0to2Probability - baselineOutcomes.mrs0to2Probability,
+                outcome: `mRS 0-2 ${currentOutcomes.mrs0to2Probability >= baselineOutcomes.mrs0to2Probability ? "↑" : "↓"} ${Math.abs(Number((currentOutcomes.mrs0to2Probability - baselineOutcomes.mrs0to2Probability).toFixed(2)))}%`,
+                outcomeDelta: Number((currentOutcomes.mrs0to2Probability - baselineOutcomes.mrs0to2Probability).toFixed(2)),
               }}
             />
           </div>

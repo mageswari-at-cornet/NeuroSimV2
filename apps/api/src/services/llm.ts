@@ -47,9 +47,6 @@ export class LLMService {
             const task = this.queue.shift();
             if (task) {
                 await task();
-                // Enforce 2000ms delay between requests to stay under 30 RPM
-                // (60s / 30 requests = 2s per request)
-                await new Promise(resolve => setTimeout(resolve, 2000));
             }
         }
 
@@ -196,7 +193,6 @@ IMPORTANT:
 
     /**
      * Calculates a value based on a prompt and context.
-     * Returns a number (legacy) or an object (batch).
      */
     static async calculate(prompt: string): Promise<any> {
         const messages = [
@@ -213,46 +209,19 @@ IMPORTANT:
         ];
 
         try {
-            // Use low temperature for deterministic math
-            // Force JSON mode if supported by the model, otherwise rely on prompt
             const resultStr = await this.callGroq(messages, 0.1);
-
-            // robust parsing
             try {
-                // LOGGING FOR DEBUGGING
-                console.log(`[LLM Raw] ${resultStr.substring(0, 100)}...`);
-
-                // Try to find JSON in the output if there's extra text/markdown
                 const firstOpen = resultStr.indexOf('{');
                 const lastClose = resultStr.lastIndexOf('}');
                 let jsonStr = resultStr;
-
                 if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
                     jsonStr = resultStr.substring(firstOpen, lastClose + 1);
                 }
-
                 const parsed = JSON.parse(jsonStr);
-                console.log(`[LLM Parsed] Keys: ${Object.keys(parsed).join(', ')}`);
-
-                // If it's the legacy format { result: number }, return the number
-                if (parsed.result !== undefined && typeof parsed.result === 'number' && Object.keys(parsed).length === 1) {
-                    return parsed.result;
-                }
-
-                // Otherwise return the whole object (Batch mode)
                 return parsed;
             } catch (e) {
                 console.error("[LLM Parse Error] Raw string was:", resultStr);
-                // Fallback to simple number parsing if JSON parsing fails and it might be a raw number (legacy fallback)
-                // Only if the string looks like a number and not a failed JSON
-                const cleanStr = resultStr.replace(/[^0-9.-]/g, '');
-                if (cleanStr && !resultStr.includes('{')) {
-                    const num = parseFloat(cleanStr);
-                    if (!isNaN(num)) return num;
-                }
-
-                console.error(`LLM returned invalid JSON: "${resultStr}"`);
-                throw new Error(`LLM returned invalid JSON: ${resultStr}`);
+                throw e;
             }
         } catch (error) {
             console.error("Error in LLM calculation:", error);

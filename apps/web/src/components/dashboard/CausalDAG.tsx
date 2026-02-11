@@ -21,13 +21,14 @@ export function CausalDAG({ className }: CausalDAGProps) {
   const { activeScenario, simulationParams, currentOutcomes, baselineOutcomes } = useDashboardStore();
 
   // Calculate deltas dynamically from store
-  const timeDelta = currentOutcomes.timeToReperfusion - baselineOutcomes.timeToReperfusion;
-  const coreDelta = currentOutcomes.finalCoreVolume - baselineOutcomes.finalCoreVolume;
-  const reperfDelta = currentOutcomes.reperfusionProbability - baselineOutcomes.reperfusionProbability;
-  const sichDelta = currentOutcomes.sichRisk - baselineOutcomes.sichRisk;
-  const mrsDelta = currentOutcomes.mrs0to2Probability - baselineOutcomes.mrs0to2Probability;
-  const mortalityDelta = currentOutcomes.mortalityRisk - baselineOutcomes.mortalityRisk;
-  const salvageDelta = currentOutcomes.penumbraSalvaged - baselineOutcomes.penumbraSalvaged;
+  // Calculate deltas dynamically from store - ROUNDED to 2 decimals
+  const timeDelta = Number((currentOutcomes.timeToReperfusion - baselineOutcomes.timeToReperfusion).toFixed(2));
+  const coreDelta = Number((currentOutcomes.finalCoreVolume - baselineOutcomes.finalCoreVolume).toFixed(2));
+  const reperfDelta = Number((currentOutcomes.reperfusionProbability - baselineOutcomes.reperfusionProbability).toFixed(2));
+  const sichDelta = Number((currentOutcomes.sichRisk - baselineOutcomes.sichRisk).toFixed(2));
+  const mrsDelta = Number((currentOutcomes.mrs0to2Probability - baselineOutcomes.mrs0to2Probability).toFixed(2));
+  const mortalityDelta = Number((currentOutcomes.mortalityRisk - baselineOutcomes.mortalityRisk).toFixed(2));
+  const salvageDelta = Number((currentOutcomes.penumbraSalvaged - baselineOutcomes.penumbraSalvaged).toFixed(2));
 
   // Helper to format delta
   const formatDelta = (delta: number, unit: string = "%", invert: boolean = false) => {
@@ -39,7 +40,8 @@ export function CausalDAG({ className }: CausalDAGProps) {
         ? "text-neuro-positive"
         : "text-neuro-negative";
     const sign = delta > 0 ? "+" : "";
-    return <span className={colorClass}>{sign}{delta}{unit}</span>;
+    // Keep consistent 2 decimal formatting for display
+    return <span className={colorClass}>{sign}{Number(delta).toFixed(2)}{unit}</span>;
   };
 
   const getScenarioNarrative = () => {

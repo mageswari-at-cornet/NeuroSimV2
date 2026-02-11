@@ -167,7 +167,7 @@ async function calculateTimeSensitivity(
 
       return {
         time: testTime,
-        mrs0to2: res ? Math.round(res.result.mrs0to2Probability) : 0,
+        mrs0to2: res ? Math.round(res.result.outcomes.mrs0to2Probability) : 0,
         label: point.label,
         isCurrent: point.offset === 0,
       };
@@ -336,27 +336,38 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   },
 
   updateSimulationParams: async (params) => {
+    // 1. Update local state immediately for UI responsiveness
     set((state) => ({
       simulationParams: { ...state.simulationParams, ...params },
-      isCalculating: true
+      isCalculating: true // Show loading state immediately
     }));
 
-    try {
-      const state = get();
-      const { outcomes, uncertainty } = await calculateOutcomes(state.simulationParams, state.patientData, state.simulationMode);
+    // 2. Clear existing timer
+    const existingTimer = (get() as any).debounceTimer;
+    if (existingTimer) clearTimeout(existingTimer);
 
-      const timeSensitivity = await calculateTimeSensitivity(
-        state.simulationParams,
-        state.patientData,
-        outcomes.timeToReperfusion
-      );
+    // 3. Set new timer
+    const timer = setTimeout(async () => {
+      try {
+        const state = get();
+        const { outcomes, uncertainty } = await calculateOutcomes(state.simulationParams, state.patientData, state.simulationMode);
 
-      set({ currentOutcomes: outcomes, timeSensitivityData: timeSensitivity, isCalculating: false });
-      if (uncertainty) set({ uncertaintyOutcomes: uncertainty });
-    } catch (e) {
-      console.error("Simulation failed", e);
-      set({ isCalculating: false });
-    }
+        const timeSensitivity = await calculateTimeSensitivity(
+          state.simulationParams,
+          state.patientData,
+          outcomes.timeToReperfusion
+        );
+
+        set({ currentOutcomes: outcomes, timeSensitivityData: timeSensitivity, isCalculating: false });
+        if (uncertainty) set({ uncertaintyOutcomes: uncertainty });
+      } catch (e) {
+        console.error("Simulation failed", e);
+        set({ isCalculating: false });
+      }
+    }, 500); // 500ms debounce
+
+    // 4. Store timer ID (using a hidden property on the store state for simplicity)
+    set({ debounceTimer: timer } as any);
   },
 
   setSimulationMode: async (mode) => {

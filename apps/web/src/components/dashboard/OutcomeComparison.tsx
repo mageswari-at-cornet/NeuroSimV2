@@ -27,15 +27,16 @@ interface OutcomeComparisonProps {
 }
 
 export function OutcomeComparison({ data, uncertaintyData, simulationMode = "deterministic", className, isCompact }: OutcomeComparisonProps) {
+  // Force update verify
   const [isExpanded, setIsExpanded] = useState(true);
   const isMonteCarlo = simulationMode === "monte-carlo";
 
   // Prepare data for deterministic bar chart
   const chartData = data.map((item) => ({
     name: item.metric,
-    baseline: item.baseline,
-    current: item.current,
-    delta: item.current - item.baseline,
+    baseline: Number(item.baseline.toFixed(2)),
+    current: Number(item.current.toFixed(2)),
+    delta: Number((item.current - item.baseline).toFixed(2)),
     unit: item.unit,
   }));
 
@@ -305,7 +306,7 @@ export function OutcomeComparison({ data, uncertaintyData, simulationMode = "det
                         item.delta > 0 ? "text-neuro-positive" : item.delta < 0 ? "text-neuro-negative" : "text-neuro-text-secondary"
                       )}
                     >
-                      {item.current}%
+                      {Number(item.current).toFixed(2)}%
                     </span>
                     <span
                       className={cn(
@@ -314,7 +315,7 @@ export function OutcomeComparison({ data, uncertaintyData, simulationMode = "det
                         item.delta > 0 ? "text-neuro-positive" : item.delta < 0 ? "text-neuro-negative" : "text-neuro-text-secondary"
                       )}
                     >
-                      ({item.delta > 0 ? "+" : ""}{item.delta}%)
+                      ({item.delta > 0 ? "+" : ""}{Number(item.delta).toFixed(2)}%)
                     </span>
                   </div>
                 </div>

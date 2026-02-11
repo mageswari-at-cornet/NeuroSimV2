@@ -14,12 +14,12 @@ interface TissueFateDonutProps {
 }
 
 export function TissueFateDonut({ data, className, isCompact }: TissueFateDonutProps) {
-  const total = data.core + data.salvaged + data.atRisk;
-  
+  const total = Number((data.core + data.salvaged + data.atRisk).toFixed(2));
+
   const chartData = [
-    { name: "Core (Dead)", value: data.core, color: "#ef4444" },
-    { name: "Salvaged", value: data.salvaged, color: "#06b6d4" },
-    { name: "At Risk", value: data.atRisk, color: "#f59e0b" },
+    { name: "Core (Dead)", value: Number(data.core.toFixed(2)), color: "#ef4444" },
+    { name: "Salvaged", value: Number(data.salvaged.toFixed(2)), color: "#06b6d4" },
+    { name: "At Risk", value: Number(data.atRisk.toFixed(2)), color: "#f59e0b" },
   ];
 
   const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number }> }) => {
@@ -62,7 +62,7 @@ export function TissueFateDonut({ data, className, isCompact }: TissueFateDonutP
             <Tooltip content={<CustomTooltip />} />
           </PieChart>
         </ResponsiveContainer>
-        
+
         {/* Center content */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <span className={cn("font-bold tabular-nums text-neuro-text-primary", isCompact ? "text-lg" : "text-2xl")}>
@@ -71,7 +71,7 @@ export function TissueFateDonut({ data, className, isCompact }: TissueFateDonutP
           <span className="text-xs text-neuro-text-secondary">cc total</span>
         </div>
       </div>
-      
+
       {/* Legend */}
       <div className={cn(isCompact ? "mt-2 flex flex-col items-center gap-1" : "mt-4 flex justify-center gap-6")}>
         {chartData.map((item) => (
