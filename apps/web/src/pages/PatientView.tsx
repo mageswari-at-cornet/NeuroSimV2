@@ -25,6 +25,7 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
     baselineOutcomes,
     activeScenario,
     simulationMode,
+    simulationSource,
     uncertaintyOutcomes,
     baselineUncertainty,
     setSelectedPatient,
@@ -160,6 +161,7 @@ export function PatientView({ patientId, onBackToDashboard }: PatientViewProps) 
                   data={outcomeData}
                   uncertaintyData={uncertaintyOutcomeData}
                   simulationMode={simulationMode}
+                  simulationSource={simulationSource}
                   isCompact={isChatOpen}
                 />
               </div>

@@ -80,4 +80,5 @@ export interface SimulationResult {
     mediators: MediatorResults;
     outcomes: OutcomeResults;
     uncertainty?: UncertaintyResults;
+    source?: 'llm' | 'local';
 }

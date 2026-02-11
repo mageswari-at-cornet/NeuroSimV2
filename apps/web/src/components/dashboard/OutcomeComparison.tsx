@@ -22,14 +22,17 @@ interface OutcomeComparisonProps {
   data: OutcomeData[];
   uncertaintyData?: UncertaintyData[];
   simulationMode?: "deterministic" | "monte-carlo";
+  simulationSource?: "llm" | "local";
   className?: string;
   isCompact?: boolean;
 }
 
-export function OutcomeComparison({ data, uncertaintyData, simulationMode = "deterministic", className, isCompact }: OutcomeComparisonProps) {
+export function OutcomeComparison({ data, uncertaintyData, simulationMode = "deterministic", simulationSource, className, isCompact }: OutcomeComparisonProps) {
   // Force update verify
   const [isExpanded, setIsExpanded] = useState(true);
   const isMonteCarlo = simulationMode === "monte-carlo";
+
+  // ... (chart data prep code remains same) ...
 
   // Prepare data for deterministic bar chart
   const chartData = data.map((item) => ({
@@ -119,6 +122,28 @@ export function OutcomeComparison({ data, uncertaintyData, simulationMode = "det
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Source Indicator */}
+          {simulationSource && !isMonteCarlo && (
+            <div className={cn(
+              "flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium border",
+              simulationSource === 'llm'
+                ? "bg-neuro-salvaged/10 text-neuro-salvaged border-neuro-salvaged/20"
+                : "bg-neuro-text-tertiary/10 text-neuro-text-tertiary border-neuro-text-tertiary/20"
+            )} title={simulationSource === 'llm' ? "Calculated by AI Model" : "Calculated Locally (Fallback)"}>
+              {simulationSource === 'llm' ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-neuro-salvaged animate-pulse" />
+                  AI Active
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-neuro-text-tertiary" />
+                  Local
+                </>
+              )}
+            </div>
+          )}
+
           {isMonteCarlo && (
             <span className="text-xs text-neuro-text-tertiary bg-neuro-bg-tertiary px-2 py-1 rounded">
               Monte Carlo (200+ runs)

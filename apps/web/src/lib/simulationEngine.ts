@@ -247,11 +247,14 @@ export async function simulatePathway(
             }
 
             const data = await response.json();
-            return data.result as SimulationResult;
+            return { ...data.result, source: 'llm' } as SimulationResult;
         } catch (e) {
             console.error("LLM Calculation failed, falling back to local", e);
             // Fallback to local
-            return runCoreSimulationLocal(phenotype, actions, { fastVal: 0.28, growthNoise: 1.0 }) as unknown as SimulationResult;
+            return {
+                ...runCoreSimulationLocal(phenotype, actions, { fastVal: 0.28, growthNoise: 1.0 }),
+                source: 'local'
+            } as unknown as SimulationResult;
         }
     }
 

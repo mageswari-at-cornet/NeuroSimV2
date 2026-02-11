@@ -35,7 +35,7 @@ async function calculateOutcomes(
   params: SimulationParams,
   patientData: PatientData,
   mode: 'deterministic' | 'monte-carlo' = 'deterministic'
-): Promise<{ outcomes: OutcomeMetrics; uncertainty?: UncertaintyOutcomes }> {
+): Promise<{ outcomes: OutcomeMetrics; uncertainty?: UncertaintyOutcomes; source?: 'llm' | 'local' }> {
   // Convert our store types to simulation engine types
   const phenotype: PatientPhenotype = {
     age: patientData.age,
@@ -99,7 +99,7 @@ async function calculateOutcomes(
     mrs0to2Probability: result.uncertainty.mrs0to2Probability,
   } : undefined;
 
-  return { outcomes, uncertainty };
+  return { outcomes, uncertainty, source: result.source };
 }
 
 // Calculate time sensitivity curve data
@@ -195,6 +195,7 @@ interface DashboardState {
   simulationMode: "deterministic" | "monte-carlo";
   uncertaintyOutcomes: UncertaintyOutcomes;
   baselineUncertainty: UncertaintyOutcomes;
+  simulationSource?: 'llm' | 'local';
 
   // Async state
   isCalculating: boolean;
@@ -350,7 +351,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     const timer = setTimeout(async () => {
       try {
         const state = get();
-        const { outcomes, uncertainty } = await calculateOutcomes(state.simulationParams, state.patientData, state.simulationMode);
+        const { outcomes, uncertainty, source } = await calculateOutcomes(state.simulationParams, state.patientData, state.simulationMode);
 
         const timeSensitivity = await calculateTimeSensitivity(
           state.simulationParams,
@@ -358,7 +359,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
           outcomes.timeToReperfusion
         );
 
-        set({ currentOutcomes: outcomes, timeSensitivityData: timeSensitivity, isCalculating: false });
+        set({ currentOutcomes: outcomes, timeSensitivityData: timeSensitivity, isCalculating: false, simulationSource: source });
         if (uncertainty) set({ uncertaintyOutcomes: uncertainty });
       } catch (e) {
         console.error("Simulation failed", e);
@@ -375,8 +376,8 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 
     try {
       const state = get();
-      const { outcomes, uncertainty } = await calculateOutcomes(state.simulationParams, state.patientData, mode);
-      set({ currentOutcomes: outcomes, isCalculating: false });
+      const { outcomes, uncertainty, source } = await calculateOutcomes(state.simulationParams, state.patientData, mode);
+      set({ currentOutcomes: outcomes, isCalculating: false, simulationSource: source });
       if (uncertainty) set({ uncertaintyOutcomes: uncertainty });
     } catch (e) {
       console.error("Simulation failed", e);
