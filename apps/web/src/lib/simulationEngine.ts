@@ -235,7 +235,8 @@ export async function simulatePathway(
         `;
 
         try {
-            const response = await fetch('/api/calculate', {
+            const baseUrl = import.meta.env.VITE_API_URL || '';
+            const response = await fetch(`${baseUrl}/api/calculate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt })
@@ -249,7 +250,9 @@ export async function simulatePathway(
             const data = await response.json();
             return { ...data.result, source: 'llm' } as SimulationResult;
         } catch (e) {
-            console.error("LLM Calculation failed, falling back to local", e);
+            console.error("⚠️ LLM API Failed! Switching to Local Fallback.", e);
+            if (e instanceof Error) console.error("Error Details:", e.message);
+
             // Fallback to local
             return {
                 ...runCoreSimulationLocal(phenotype, actions, { fastVal: 0.28, growthNoise: 1.0 }),
@@ -329,7 +332,8 @@ export async function calculateScenarios(
     `;
 
     try {
-        const response = await fetch('/api/calculate', {
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        const response = await fetch(`${baseUrl}/api/calculate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt })
