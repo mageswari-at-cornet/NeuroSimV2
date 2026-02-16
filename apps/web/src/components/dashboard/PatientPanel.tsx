@@ -2,7 +2,7 @@ import { useDashboardStore } from "../../store/dashboardStore";
 import { RiskGauge } from "../ui/RiskGauge";
 import { cn } from "../../lib/utils";
 import { AlertTriangle } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+
 
 interface PatientPanelProps {
   className?: string;
@@ -10,38 +10,10 @@ interface PatientPanelProps {
 
 export function PatientPanel({ className }: PatientPanelProps) {
   const { patientData, activeScenario, currentOutcomes } = useDashboardStore();
-  const [currentTime, setCurrentTime] = useState(Date.now());
 
-  // Update current time every second for live timer
-  useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, []);
 
-  // Parse onset time from store and calculate elapsed time
-  const { timeSinceOnset } = useMemo(() => {
-    const onsetStr = patientData.onsetTime;
 
-    // Handle "wake-up" stroke (unknown onset)
-    if (onsetStr === "wake-up" || onsetStr.toLowerCase().includes("wake")) {
-      return { timeSinceOnset: "Unknown" };
-    }
 
-    // Try to parse time strings like "2h 14m ago" or "3h 30m ago"
-    const hoursMatch = onsetStr.match(/(\d+)\s*h/i);
-    const minsMatch = onsetStr.match(/(\d+)\s*m/i);
-
-    const hours = hoursMatch ? parseInt(hoursMatch[1], 10) : 0;
-    const mins = minsMatch ? parseInt(minsMatch[1], 10) : 0;
-
-    const totalMinutes = hours * 60 + mins;
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
-    const s = Math.floor((currentTime / 1000) % 60); // Add seconds for live update
-
-    const formatted = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    return { timeSinceOnset: formatted };
-  }, [patientData.onsetTime, currentTime]);
 
   const getScenarioWarning = () => {
     switch (activeScenario) {
@@ -107,32 +79,12 @@ export function PatientPanel({ className }: PatientPanelProps) {
     return Math.max(1, Math.min(5, hv));
   };
 
+
+
+
   return (
     <div className={cn("space-y-4", className)}>
-      {/* Clinical Parameters - Now First */}
-      <div>
-        <h3 className="text-sm font-semibold text-neuro-text-primary mb-3">
-          Clinical Parameters
-        </h3>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <span className="text-neuro-text-tertiary block text-xs">Occlusion</span>
-            <span className="text-neuro-text-primary font-medium">{patientData.occlusionLocation}</span>
-          </div>
-          <div>
-            <span className="text-neuro-text-tertiary block text-xs">Territory at Risk</span>
-            <span className="text-neuro-text-primary font-medium">{patientData.territoryAtRisk} cc</span>
-          </div>
-          <div>
-            <span className="text-neuro-text-tertiary block text-xs">Systolic BP</span>
-            <span className="text-neuro-text-primary font-medium">{patientData.systolicBP} mmHg</span>
-          </div>
-          <div>
-            <span className="text-neuro-text-tertiary block text-xs">Onset</span>
-            <span className="text-neuro-text-primary font-bold tabular-nums">{timeSinceOnset}</span>
-          </div>
-        </div>
-      </div>
+
 
       {/* Scenario-specific warning */}
       {scenarioWarning && (
@@ -143,7 +95,7 @@ export function PatientPanel({ className }: PatientPanelProps) {
       )}
 
       {/* Risk Modifiers - Now Dynamic */}
-      <div className="pt-4 border-t border-neuro-border-subtle">
+      <div className="pt-0 border-t-0">
         <h3 className="text-sm font-semibold text-neuro-text-primary mb-3">
           Risk Modifiers
         </h3>
