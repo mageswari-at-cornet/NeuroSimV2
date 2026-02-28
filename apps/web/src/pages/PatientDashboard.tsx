@@ -74,7 +74,6 @@ export function PatientDashboard({ onSelectPatient }: PatientDashboardProps) {
                         <h2 className="text-3xl font-bold text-neuro-text-primary mb-1 bg-gradient-to-r from-neuro-text-primary to-neuro-salvaged bg-clip-text text-transparent">
                             Patient Cases
                         </h2>
-                        <p className="text-neuro-text-tertiary text-sm">Select a patient to begin simulation</p>
                     </div>
 
                     {/* Filters & Search */}
