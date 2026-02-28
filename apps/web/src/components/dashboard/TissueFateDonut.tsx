@@ -65,7 +65,7 @@ export function TissueFateDonut({ data, className, isCompact }: TissueFateDonutP
 
         {/* Center content */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className={cn("font-bold tabular-nums text-neuro-text-primary", isCompact ? "text-lg" : "text-2xl")}>
+          <span className={cn("font-bold tabular-nums text-neuro-text-primary", isCompact ? "text-sm" : "text-lg")}>
             {total}
           </span>
           <span className="text-xs text-neuro-text-secondary">cc total</span>
@@ -73,16 +73,16 @@ export function TissueFateDonut({ data, className, isCompact }: TissueFateDonutP
       </div>
 
       {/* Legend */}
-      <div className={cn(isCompact ? "mt-2 flex flex-col items-center gap-1" : "mt-4 flex justify-center gap-6")}>
+      <div className="mt-4 flex flex-col items-start gap-2 ml-4">
         {chartData.map((item) => (
-          <div key={item.name} className={cn("flex items-center gap-2", isCompact && "w-full justify-center")}>
+          <div key={item.name} className="flex items-center gap-2">
             <div
               className="w-3 h-3 rounded-full flex-shrink-0"
               style={{ backgroundColor: item.color }}
             />
             <div className="flex flex-col items-start">
-              <span className="text-xs text-neuro-text-secondary leading-none">{item.name}</span>
-              <span className="text-xs font-medium tabular-nums text-neuro-text-primary leading-none mt-0.5">
+              <span className="text-[11px] text-neuro-text-secondary leading-tight">{item.name}</span>
+              <span className="text-xs font-bold tabular-nums text-neuro-text-primary leading-tight">
                 {item.value}cc
               </span>
             </div>
