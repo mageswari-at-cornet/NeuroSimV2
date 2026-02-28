@@ -187,6 +187,9 @@ IMPORTANT:
             return await this.callGroq(messages);
         } catch (error) {
             console.error("Error in chat:", error);
+            if (error instanceof Error && error.message.includes("429")) {
+                return "I have reached my daily usage limit for the AI service. Please try again later or update the API key.";
+            }
             return "I'm having trouble connecting to the AI service right now.";
         }
     }

@@ -258,6 +258,21 @@ const defaultUncertaintyOutcomes: UncertaintyOutcomes = {
   mrs0to2Probability: { p05: 40, mean: 48, p95: 56 },
 };
 
+// Define "Natural History" (No Intervention) parameters
+const NATURAL_HISTORY_PARAMS: SimulationParams = {
+  routingStrategy: "drip-and-ship",
+  transferDelay: 0,
+  doorToGroinTime: 120, // Effectively "no reperfusion" or "late reperfusion"
+  ivtWorkflowDelay: 0,
+  treatmentStrategy: "evt-alone",
+  imagingPathway: "standard",
+  tandemApproach: "balloon-only",
+  largeCoreStrategy: "medical", // Crucial: Medical management baseline
+  mismatchStrength: "moderate",
+  wakeUpStrategy: "evt-alone",
+  sbpTarget: 180, // Standard conservative target
+};
+
 export const useDashboardStore = create<DashboardState>((set, get) => ({
   selectedPatientId: "P1",
   activeScenario: "routing",
@@ -271,25 +286,44 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   isCalculating: false,
   timeSensitivityData: [],
 
-  setSelectedPatient: (patientId: string) => {
+  setSelectedPatient: async (patientId: string) => {
     const patient = getPatientById(patientId);
+    let targetPatient = patient;
     if (!patient) {
       console.warn(`Patient ${patientId} not found, using default`);
-      const defaultPatient = getDefaultPatient();
-      set({
-        selectedPatientId: defaultPatient.id,
-        patientData: defaultPatient.data,
-        activeScenario: defaultPatient.scenario,
-      });
-      return;
+      targetPatient = getDefaultPatient();
     }
+
+    if (!targetPatient) return;
+
     set({
-      selectedPatientId: patient.id,
-      patientData: patient.data,
-      activeScenario: patient.scenario,
+      selectedPatientId: targetPatient.id,
+      patientData: targetPatient.data,
+      activeScenario: targetPatient.scenario,
+      isCalculating: true,
     });
-    // Trigger calculation
-    get().updateSimulationParams({});
+
+    try {
+      const state = get();
+      // 1. Calculate the dynamic baseline for THIS patient (Natural History)
+      const { outcomes: baseline, uncertainty: baselineUncert } = await calculateOutcomes(
+        NATURAL_HISTORY_PARAMS,
+        targetPatient.data,
+        state.simulationMode
+      );
+
+      // 2. Set the baseline outcomes
+      set({
+        baselineOutcomes: baseline,
+        baselineUncertainty: baselineUncert || defaultUncertaintyOutcomes,
+      });
+
+      // 3. Trigger calculation for current parameters
+      await get().updateSimulationParams({});
+    } catch (e) {
+      console.error("Failed to calculate patient baseline", e);
+      set({ isCalculating: false });
+    }
   },
 
   setActiveScenario: async (scenario) => {

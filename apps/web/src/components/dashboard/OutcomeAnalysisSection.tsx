@@ -154,25 +154,29 @@ export function OutcomeAnalysisSection(props: OutcomeAnalysisSectionProps) {
             </div>
 
             {/* Content Area */}
-            <div className="p-0">
+            <div className="p-0 w-full">
                 {viewMode === "visual" ? (
-                    <div className={cn("grid gap-4 p-4", isCompact ? "grid-cols-[1.2fr_2fr]" : "grid-cols-1 md:grid-cols-[1fr_2fr]")}>
+                    <div className={cn("grid gap-4 p-4 w-full", isCompact ? "grid-cols-[1.2fr_2fr]" : "grid-cols-1 md:grid-cols-[1fr_2fr]")}>
                         {/* Start: Tissue Fate Chart */}
-                        <TissueFateDonut
-                            data={tissueData}
-                            isCompact={isCompact}
-                            className="bg-transparent border-0 shadow-none p-0"
-                        />
+                        <div className="min-w-0">
+                            <TissueFateDonut
+                                data={tissueData}
+                                isCompact={isCompact}
+                                className="bg-transparent border-0 shadow-none p-0 w-full"
+                            />
+                        </div>
 
                         {/* Start: Outcome Comparison Chart */}
-                        <OutcomeComparison
-                            data={outcomeData}
-                            uncertaintyData={uncertaintyData}
-                            simulationMode={simulationMode}
-                            simulationSource={simulationSource}
-                            isCompact={isCompact}
-                            className="bg-transparent border-0 shadow-none p-0"
-                        />
+                        <div className="min-w-0">
+                            <OutcomeComparison
+                                data={outcomeData}
+                                uncertaintyData={uncertaintyData}
+                                simulationMode={simulationMode}
+                                simulationSource={simulationSource}
+                                isCompact={isCompact}
+                                className="bg-transparent border-0 shadow-none p-0 w-full"
+                            />
+                        </div>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">

@@ -65,7 +65,11 @@ export async function aiRoutes(fastify: FastifyInstance) {
             };
         } catch (error) {
             request.log.error(error);
-            reply.status(400).send({ error: "Invalid request or AI service error" });
+            request.log.error(error);
+            reply.status(400).send({
+                error: "Invalid request or AI service error",
+                details: error instanceof Error ? error.message : String(error)
+            });
         }
     });
 
@@ -83,7 +87,10 @@ export async function aiRoutes(fastify: FastifyInstance) {
             return { result };
         } catch (error) {
             request.log.error(error);
-            reply.status(400).send({ error: "Calculation failed" });
+            reply.status(400).send({
+                error: "Calculation failed",
+                details: error instanceof Error ? error.message : String(error)
+            });
         }
     });
 }
