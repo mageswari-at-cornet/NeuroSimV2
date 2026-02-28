@@ -235,7 +235,7 @@ export async function simulatePathway(
         `;
 
         try {
-            const baseUrl = import.meta.env.VITE_API_URL || '';
+            const baseUrl = import.meta.env.VITE_API_URL || 'https://neurosimapi-production.up.railway.app';
             const response = await fetch(`${baseUrl}/api/calculate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

@@ -147,9 +147,11 @@ IMPORTANT:
                 { role: "user", content: userPrompt }
             ]);
         } catch (error) {
-            console.error("Error generating explanation:", error instanceof Error ? error.message : error);
-            // Log full error details for debugging
-            if (error instanceof Error && 'cause' in error) console.error("Error cause:", (error as any).cause);
+            console.error("CRITICAL: AI Explanation Generation Failed");
+            console.error("Error Message:", error instanceof Error ? error.message : error);
+            if (error instanceof Error && (error as any).status) {
+                console.error("Status Code:", (error as any).status);
+            }
             return "I apologize, but I am currently unable to generate a detailed explanation. Please consult with the clinical team directly.";
         }
     }
